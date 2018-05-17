@@ -1,0 +1,1954 @@
+---
+title: "Rebecca's Olfactory Bulb Projection Neurons as of the end of February 2018"
+author: "Russell"
+date: "02/28/2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r import, echo=FALSE, cache=TRUE, warning=FALSE, error=FALSE, message=FALSE}
+
+library(SummarizedExperiment)
+library(scater)
+library(scone)
+library(clusterExperiment)
+library(ggplot2)
+library(magrittr)
+library(cowplot)
+library(Rtsne)
+library(zinbwave)
+library(cellrangerRkit)
+library(Hmisc)
+library(Seurat)
+NMF::nmf.options(grid.patch=TRUE)##put anywhere in the script to remove first (blank) page of heatmap pdfs
+
+exptStr <- "RCOB2AB5"
+pal <- clusterExperiment::bigPalette
+colb <- c("dodgerblue", "goldenrod", "magenta", "purple", "green")
+cole <- c("blue","magenta")
+colRKC <- c("deepskyblue", "deeppink", "darkviolet", "gold", "chocolate4", "pink", "darkorange2", "chartreuse3", "slategray2", "firebrick3", "gray", "black", "navy", "lightgoldenrod1", "gray20")
+set.seed(9887)
+
+mydata <- load_cellranger_matrix("cellrangerOut/RCOB2A/")
+RCOB2A <-as.matrix(exprs(mydata))
+mydata <- load_cellranger_matrix("cellrangerOut/RCOB2B/")
+RCOB2B <-as.matrix(exprs(mydata))
+mydata <- load_cellranger_matrix("cellrangerOut/RCOB3A/")
+RCOB3A <-as.matrix(exprs(mydata))
+mydata <- load_cellranger_matrix("cellrangerOut/RCOB3B/")
+RCOB3B <-as.matrix(exprs(mydata))
+mydata <- load_cellranger_matrix("cellrangerOut/RCOB4/")
+RCOB4 <-as.matrix(exprs(mydata))
+
+mydata <- load_cellranger_matrix("cellrangerOut/RCOBaggregate2-4/")
+RCOB <- as.matrix(exprs(mydata))
+# remove1 <- length(colnames(RCOB1))
+# RCOB <- RCOB[,-c(1:remove1)]
+
+
+expt <- as.factor(paste0("OB_", c(rep("Slc17a7", NCOL(RCOB)))))
+batch <- as.factor(paste0("OB_", c(rep("2A", NCOL(RCOB2A)), rep("2B", NCOL(RCOB2B)), rep("3A", NCOL(RCOB3A)), rep("3B", NCOL(RCOB3B)), rep("4", NCOL(RCOB4)))))
+
+se <- SummarizedExperiment(list(counts=RCOB), colData=data.frame(batch=batch, expt=expt))
+genes <- read.table(file="cellrangerOut/RCOBaggregate2-4/outs/filtered_gene_bc_matrices_mex/GRCm38p4Mm10/genes.tsv")
+colnames(genes) <- c("geneID", "Symbol")
+rowData(se) <- genes
+head(rowData(se))
+head(colData(se))
+rm(RCOB2A, RCOB2B, RCOB3A, RCOB3B, RCOB4)
+
+```
+
+```{r functions, echo=FALSE}
+library(rARPACK)
+fastpca <- function(expr, scale=FALSE) {
+  k <- 50
+  svd_raw <- svds(scale(t(expr), center=TRUE, scale=scale), k=k, nu=k, nv=0)
+  pc_raw <- svd_raw$u %*% diag(svd_raw$d[1:k])
+  return(pc_raw)
+}
+
+norm10x = function (ei)
+{
+  sums = colSums(ei)
+  eo = t(t(ei)*median(sums)/sums)
+  return(eo)
+}
+```
+
+# Exploratory Data Analysis
+```{r EDA, echo=FALSE}
+
+hist(colSums(assay(se)), breaks=30, 
+     xlab='Number of UMI', main="Number of UMI per sample")
+
+hist(colSums(assay(se)>0)/nrow(se), breaks=30, 
+     xlab="Proportion of detected genes", main="Proportion of detected genes")
+
+hist(colSums(assay(se)>0), breaks=50, 
+     xlab="Number of detected genes", main="Number of detected genes")
+
+hist(colMeans(assay(se)==0), breaks=30, 
+     xlab="Proportion of zeros", main="Proportion of zeros")
+
+boxplot(colSums(assay(se))~colData(se)$batch, main="Number of UMI per sample")
+boxplot(colSums(assay(se)>0)/nrow(se)~colData(se)$batch, main="Proportion of detected genes")
+boxplot(colMeans(assay(se)==0)~colData(se)$batch, main="Proportion of zeros")
+
+simple <- assay(se)[rowSums(assay(se))>10,]
+simple <- SUM_FN(simple)
+
+runQCmetrics <- TRUE
+if (runQCmetrics) {
+pca <- prcomp(t(simple), scale. = TRUE)
+screeplot(pca, type = "lines", npcs = 50, main = "Expression PCA screeplot")
+plot(pca$x, col=alpha(colb[batch], 0.3), pch=19, cex=0.4, main="simple filtering, scaling --> PCA")
+legend("topleft", legend=levels(batch), fill=colb, cex=0.6)
+
+print(paste0("Percent total variance captured in first 50 PCs is ", cumsum(pca$sdev^2/sum(pca$sdev^2))[50] * 100))
+  
+###---Use scater package to calculate some quality control metrics. Assess QC metrics.
+
+###only works with unique identifiers - Ensembl ids, not gene names b/c some gene name duplication (65/28000)
+sce <- newSCESet(countData = assay(se))
+sce <- calculateQCMetrics(sce)
+
+rownames(se) <- rowData(se)$Symbol
+head(rownames(se))
+
+###only works with gene names
+ribo_idx <- grep("^Rpl|^Rps", rowData(se)[,2])
+mito_idx <- grep("^Mt", rowData(se)[,2])
+ribo_pct <- colSums(assay(se)[ribo_idx,])/colSums(assay(se)) * 100
+mito_pct <- colSums(assay(se)[mito_idx,])/colSums(assay(se)) * 100
+plot(mito_pct, col=colb[batch], xlab="cell index", main="% mito (Mt*) genes"); legend("topleft", legend=levels(batch), fill=colb, cex=0.8)
+boxplot(mito_pct ~ colData(se)$batch, main="percent mito genes", col=colb)
+plot(ribo_pct, col=colb[batch], xlab="cell index", main="% ribo (Rpl*) genes"); legend("topleft", legend=levels(batch), fill=colb, cex=0.8)
+boxplot(ribo_pct ~ colData(se)$batch, main="percent ribo genes", col=colb)
+
+qc <- as.matrix(data.frame(colData(sce)[,c(2, 4:8)], mito_pct = mito_pct, ribo_pct = ribo_pct))
+
+qcpca <- prcomp(qc, scale. = TRUE)
+screeplot(qcpca, type = "lines", main = "QC-PCA screeplot")
+plot(qcpca$x, col=alpha(colb[batch], 0.3), pch=19, main="QC PCA")
+legend("bottomright", legend=levels(batch), fill=colb, cex=0.8)
+# plot(qcpca$x, col=alpha(colb[batch], 0.1), pch=19, main="QC PCA")
+# legend("bottomright", legend=levels(batch), fill=colb, cex=0.6)
+
+save(se, sce, qc, pca, qcpca, file="dataObjects/RCOB_unfiltered.Rda")
+} else {
+  load("dataObjects/RCOB_unfiltered.Rda")
+}
+
+fig_data <- data.frame(pca$x[,1:2], qc,
+                   QPC1=qcpca$x[,1], QPC2=qcpca$x[,2])
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_pca
+
+fig_qpca <- ggplot(fig_data, aes(x = QPC1, y = QPC2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_qpca
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = ribo_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_pca
+
+fig_qpca <- ggplot(fig_data, aes(x = QPC1, y = QPC2, color = ribo_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_qpca
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = mito_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_pca
+
+fig_qpca <- ggplot(fig_data, aes(x = QPC1, y = QPC2, color = mito_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_qpca
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = log10_total_features)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_pca
+
+fig_qpca <- ggplot(fig_data, aes(x = QPC1, y = QPC2, color = log10_total_features)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_qpca
+
+rm(mito_idx, ribo_idx, fig_pca, fig_qpca)
+```
+
+```{r filtering, echo=FALSE}
+
+colData(se) <- cbind(colData(se), qc)
+
+# select expressed genes only
+dim(se)
+se <- se[rowSums(assay(se))>0,]
+dim(se)
+
+# select common genes
+num_reads <- quantile(assay(se)[assay(se) > 0])[4]
+num_cells = 0.25*ncol(se)
+is_common = rowSums(assay(se) >= num_reads) >= num_cells
+table(is_common)
+
+#hk <- read.table("ref/HK_genes.txt")
+data("housekeeping")
+hk <- capitalize(tolower(housekeeping$V1))
+#hk <- read.table("ref/hkl615.txt")
+#hk <- as.character(hk[,1])
+# hk <- sample(hk, 1000)
+# write.table(hk, file="ref/HK_genes_1000sampled.txt", quote = FALSE, col.names = FALSE, row.names = FALSE)
+hk <- intersect(hk, rowData(se)$Symbol)
+hk_idx <- which(rowData(se)$Symbol %in% hk)
+
+mfilt <- metric_sample_filter(assay(se),
+                             nreads = colData(sce)$total_counts,
+                             gene_filter = is_common,
+                             pos_controls = hk_idx,
+                             hard_nreads = 2000,
+                             zcut = 3, mixture = FALSE,
+                             plot = TRUE)
+
+plot(pca$x, pch=19, col=pal[as.numeric(mfilt$filtered_breadth)+1],
+     main = "PCA Filtered on transcriptome 'breadth'")
+plot(pca$x, pch=19, col=pal[as.numeric(mfilt$filtered_fnr)+1],
+     main = "PCA Filtered on FNR AUC")
+plot(pca$x, pch=19, col=pal[as.numeric(mfilt$filtered_nreads)+1],
+     main = "PCA Filtered on nreads")
+
+plot(qcpca$x, pch=19, col=pal[as.numeric(mfilt$filtered_breadth)+1],
+     main = "QPCA Filtered on transcriptome 'breadth'")
+plot(qcpca$x, pch=19, col=pal[as.numeric(mfilt$filtered_fnr)+1],
+     main = "QPCA Filtered on FNR AUC")
+plot(qcpca$x, pch=19, col=pal[as.numeric(mfilt$filtered_nreads)+1],
+     main = "QPCA Filtered on nreads")
+
+table(mfilt$filtered_nreads, mfilt$filtered_fnr)
+filter_cell <- !apply(simplify2array(mfilt[!is.na(mfilt)]),1,any)
+
+plot(qcpca$x, pch=19, col=pal[as.numeric(filter_cell)+1],
+     main = "PCA Filtered on FNR AUC")
+
+
+# Final Gene Filtering: Highly expressed in at least 5 cells
+num_reads <- quantile(assay(se)[assay(se) > 0])[4]
+num_cells = 5
+is_quality = rowSums(assay(se) >= num_reads ) >= num_cells
+table(is_quality)
+filtered <- se[is_quality, filter_cell]
+#filtered <- se[is_quality,]
+dim(filtered)
+rownames(filtered) <- rowData(filtered)$Symbol
+qc <- qc[colnames(filtered),]
+batch <- colData(filtered)[,1]
+names(batch) <- colnames(filtered)
+expt <- colData(filtered)[,2]
+names(expt) <- colnames(filtered)
+
+```
+
+
+```{r save_filtered}
+save(qc, filtered, batch, expt, file="dataObjects/RCOB_filtered.rda")
+```
+
+
+# Check for batch effects prior to normalization
+```{r batch, echo=FALSE}
+# check for batch effects
+plot(pca$x, pch=19, col=colb[colData(se)$batch],
+     main = "PCA Color-coded by batch")
+legend("topleft", legend=levels(batch), fill=colb, cex=0.8)
+plot(qcpca$x, pch=19, col=colb[colData(se)$batch],
+     main = "QPCA Color-coded by batch")
+legend("topleft", legend=levels(batch), fill=colb, cex=0.8)
+
+boxplot(pca$x[,1] ~ colData(se)$batch, col=colb)
+boxplot(pca$x[,2] ~ colData(se)$batch, col=colb)
+
+simple <- assay(filtered)
+#simple <- SUM_FN(simple)
+
+pca <- fastpca(log(simple + 0.1))
+tsne_data <- Rtsne(pca[,1:50], pca=FALSE, max_iter = 5000)
+plot(tsne_data$Y, pch=19, cex=0.5, col=alpha(colb[colData(filtered)$batch],0.5), main = "Gene filtered, cell filtered, Pre-Norm\n OB cells")
+legend("bottomright", legend=levels(batch), fill=colb, cex=0.8)
+pdf(file="output/viz/filteredPreNorm/tSNE_batch_postFilt_preNorm.pdf")
+plot(tsne_data$Y, pch=19, cex=0.5, col=alpha(colb[colData(filtered)$batch],0.5), main = "Gene filtered, cell filtered, Pre-Norm\n OB cells")
+legend("bottomright", legend=levels(batch), fill=colb, cex=0.8)
+dev.off()
+plot(pca[,1:2], pch=19, col=colb[colData(filtered)$batch])
+legend("bottomright", legend=levels(batch), fill=colb, cex=0.8)
+pdf(file="output/viz/filteredPreNorm/PCAcoloredByBatch")
+plot(pca[,1:2], pch=19, col=colb[colData(filtered)$batch])
+legend("bottomright", legend=levels(batch), fill=colb, cex=0.8)
+dev.off()
+
+
+```
+
+# Gene expression plots post filtering, but pre-normalization
+```{r preNorm_postFiltering_Plots, echo=FALSE}
+
+filtCounts <- assay(filtered)
+logfiltCounts <- log2(filtCounts+1)
+
+tsne_data <- Rtsne(pca[,1:50], pca=FALSE, max_iter = 5000)
+plot(tsne_data$Y, pch=19, cex=0.5, col=alpha(colb[colData(filtered)$batch],0.5), main = "Gene filtered, cell filtered, Pre-Norm\n OB cells")
+legend("bottomright", legend=levels(batch), fill=colb, cex=0.8)
+fig_data <- data.frame(TSNE1=tsne_data$Y[,1], TSNE2=tsne_data$Y[,2],
+                   Slc17a7 = logfiltCounts[which(rowData(filtered)$Symbol == "Slc17a7"),],
+                   Gad1 = logfiltCounts[which(rowData(filtered)$Symbol == "Gad1"),],
+                   tdTomato = logfiltCounts[which(rowData(filtered)$Symbol == "tdTomato"),],
+                   Gad2 = logfiltCounts[which(rowData(filtered)$Symbol == "Gad2"),],
+                   Fxyd7 = logfiltCounts[which(rowData(filtered)$Symbol == "Fxyd7"),],
+                   Reln = logfiltCounts[which(rowData(filtered)$Symbol == "Reln"),],
+                   Coch = logfiltCounts[which(rowData(filtered)$Symbol == "Coch"),],
+                   Fxyd6 = logfiltCounts[which(rowData(filtered)$Symbol == "Fxyd6"),])
+
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Slc17a7)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Gad1)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Gad2)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = tdTomato)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Reln)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Fxyd6)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Fxyd7)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Coch)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+
+OBgenes <- read.table(file="ref/OBgenes.txt", header = TRUE)
+poscon <- unique(intersect(OBgenes$Gene, rowData(filtered)$Symbol))
+rowData(filtered)$poscon <- (rowData(filtered)$Symbol %in% poscon)
+
+negconeval <- sample(hk, length(poscon))
+negconruv <- setdiff(hk, negconeval)
+
+rowData(filtered)$negcon_eval <- (rowData(filtered)$Symbol %in% negconeval)
+rowData(filtered)$negcon_ruv <- (rowData(filtered)$Symbol %in% negconruv)
+
+save(filtered, batch, expt, hk, negconeval, negconruv, poscon, file="dataObjects/RCOB_filtered_preScone.Rda")
+
+pdf(file="output/viz/filteredPreNorm/preNorm_poscon_heatmap.pdf", title = "poscon heatmap")
+plotHeatmap(logfiltCounts[rowData(filtered)$poscon,], sampleData=data.frame(batch = colData(filtered)[,1], expt = colData(filtered)[,2] ), clusterLegend = list(batch=colb, expt=cole), main="Positive controls", breaks=.99)
+dev.off()
+plotHeatmap(logfiltCounts[rowData(filtered)$poscon,], sampleData=data.frame(batch = colData(filtered)[,1], expt = colData(filtered)[,2]), clusterLegend = list(batch=colb, expt=cole), main="Positive controls", breaks=.99)
+
+
+pdf(file="output/viz/filteredPreNorm/preNorm_negconeval_heatmap.pdf", title = "negconeval heatmap")
+plotHeatmap(logfiltCounts[rowData(filtered)$negcon_eval,], sampleData=data.frame(batch = colData(filtered)[,1], expt = colData(filtered)[,2]), clusterLegend = list(batch=colb, expt=cole), main="Negative controls, for evalution", breaks=.99)
+dev.off()
+plotHeatmap(logfiltCounts[rowData(filtered)$negcon_eval,],sampleData=data.frame(batch = colData(filtered)[,1], expt = colData(filtered)[,2]), clusterLegend = list(batch=colb, expt=cole),  main="Negative controls, for evaluation", breaks=.99)
+
+pdf(file="output/viz/filteredPreNorm/preNorm_negconruv_heatmap.pdf", title = "negconruv heatmap")
+plotHeatmap(logfiltCounts[rowData(filtered)$negcon_ruv,], sampleData=data.frame(batch = colData(filtered)[,1], expt = colData(filtered)[,2]), clusterLegend = list(batch=colb, expt=cole), main="Negative controls, for RUV", breaks=.99)
+dev.off()
+plotHeatmap(logfiltCounts[rowData(filtered)$negcon_ruv,], sampleData=data.frame(batch = colData(filtered)[,1], expt = colData(filtered)[,2]), clusterLegend = list(batch=colb, expt=cole), main="Negative controls, for RUV", breaks=.99)
+
+```
+
+#####Correlation of QC metrics with gene expression PCs -- preNormalization
+```{r prepForNorm, echo=FALSE}
+filtPCA <- fastpca(logfiltCounts)
+cors <- lapply(1:5, function(i) abs(cor(filtPCA[,i], qc, method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(colnames(qc), 5), levels=colnames(qc)),
+                   Dimension=as.factor(rep(paste0("PC", 1:5), each=ncol(qc))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1) + 
+  ggtitle("Correlation between QC and expression PCA") -> fig_barplot
+fig_barplot
+pdf(file="output/viz/filteredPreNorm/corQCandExprPCA.pdf")
+fig_barplot
+dev.off()
+
+```
+
+# Normalization
+### SCONE --> set-up to run on the cluster
+```{r scone, eval=FALSE}
+
+run_scone <- TRUE
+if(run_scone) {
+scone_obj <- SconeExperiment(filtered,
+               which_qc = which(colnames(colData(filtered)) %in% colnames(qc)),
+               which_negconruv = 5L,
+               which_negconeval = 4L,
+               which_poscon = 3L,
+               which_batch = 1L,
+               which_bio = 2L)
+save(scone_obj, file="dataObjects/RCOB_scone_obj1.Rda")
+} else { 
+  load("RCOB_scone_normMats.Rda")
+}
+```
+
+### ZINB-WaVE set-up
+```{r zinbwavePrep, echo = FALSE, eval=TRUE}
+
+
+vars <- rowVars(logfiltCounts)
+names(vars) <- rownames(logfiltCounts)
+vars <- sort(vars, decreasing = TRUE)
+vargenes <- names(vars)[1:1000]
+
+save(vargenes, filtered, file=paste0("dataObjects/", exptStr, "_forZinbwaveRun.Rda"))
+```
+
+
+#Visualizing the output of SCONE and ZINB-WaVE
+##This is the beginning of the second stage of analysis
+```{r gettingSconeNorm, echo=FALSE}
+set.seed(9887)
+# NMF::nmf.options(grid.patch=TRUE)##put anywhere in the script to remove first (blank) page of heatmap pdfs
+library(rARPACK)
+fastpca <- function(expr, scale=FALSE) {
+  k <- 50
+  svd_raw <- svds(scale(t(expr), center=TRUE, scale=scale), k=k, nu=k, nv=0)
+  pc_raw <- svd_raw$u %*% diag(svd_raw$d[1:k])
+  return(pc_raw)
+}
+
+dataDir <- "~/Research/Projects/SCRNASeq/10XG/olfactBulb/dataObjects/"
+outDir <- "~/Research/Projects/SCRNASeq/10XG/olfactBulb/output/"
+exptStr <- "RCOB2AB5"
+pal <- clusterExperiment::bigPalette
+colb <- c("dodgerblue", "goldenrod", "magenta") #, "purple", "green")
+cole <- c("blue","magenta")
+
+data("housekeeping")
+hk <- capitalize(tolower(housekeeping$V1))
+hk <- intersect(hk, rowData(filtered)$Symbol)
+OBgenes <- read.table(file="ref/OBgenes.txt", header = TRUE)
+poscon <- unique(intersect(OBgenes$Gene, rowData(filtered)$Symbol))
+obClusterGenes <- read.table(file="ref/obClusterGenes.txt", header = FALSE)
+obClusterGenes <- unique(intersect(obClusterGenes$V1, rowData(filtered)$Symbol))
+negconeval <- sample(hk, length(poscon))
+negconruv <- setdiff(hk, negconeval)
+
+eval_scone <- TRUE
+if(eval_scone) {
+load(paste0(dataDir, exptStr, "_scone_eval_mp.Rda"))
+head(get_scores(scone_obj2))
+scores <- get_scores(scone_obj2)
+scoreRanks <- get_score_ranks(scone_obj2)
+scone_obj2@scone_params <- scone_obj2@scone_params[-c(7:56),] #none,fq,ruv_k=2,no_bio,batch; none,sum,ruv_k=3,no_bio,batch; none,fq,ruv_k=1,no_bio,batch; none,fq,qc_k=3,no_bio,batch; none,sum,qc_k=3,no_bio,batch;  none,fq,ruv_k=2,no_bio,no_batch
+
+scone_obj3 <- scone_obj2 
+save(scone_obj3, file=paste0(dataDir, exptStr, "_scone_obj3.Rda"))
+}  
+
+# set.seed(1999)
+# scone_obj4 <- scone(scone_obj3,
+#                     scaling = list(none=identity,
+#                                    fq = FQT_FN, sum = SUM_FN),
+#                     zero = "postadjust", k_ruv = 3, k_qc=3,
+#                     adjust_batch = "yes", adjust_bio = "no", eval_kclust =  3:14, return_norm = "in_memory")
+
+#####-----running scone on selected normalizations (first 6) on the cluster and retrieving it in memory
+#####
+```
+
+```{r loadingSconeNorm}
+load(paste0(dataDir, exptStr, "_filtered.rda"))
+load(paste0(dataDir, exptStr, "_scone_normMats.Rda"))
+
+sconeNorm <- get_normalized(scone_obj4, "none,fq,ruv_k=2,no_bio,batch")
+rownames(sconeNorm) <- rowData(filtered)[,2]
+logSconeNorm <- log2(sconeNorm+1)
+save(sconeNorm, logSconeNorm, file="dataObjects/RCOB_normCounts1.Rda")
+scone1 <- "none,fq,ruv_k=2,no_bio,batch"
+#######
+sconeNorm2 <- get_normalized(scone_obj4, "none,sum,ruv_k=3,no_bio,batch")
+rownames(sconeNorm2) <- rowData(filtered)[,2]
+logSconeNorm2 <- log2(sconeNorm2+1)
+save(sconeNorm2, logSconeNorm2, file="dataObjects/RCOB_normCounts2.Rda")
+scone2 <- "none,sum,ruv_k=3,no_bio,batch"
+# #######
+# sconeNorm3 <- get_normalized(scone_obj4, "none,fq,ruv_k=3,no_bio,batch")
+# rownames(sconeNorm3) <- rowData(filtered)[,2]
+# logSconeNorm3 <- log2(sconeNorm3+1)
+# save(sconeNorm3, logSconeNorm3, file="dataObjects/RCOB_normCounts3.Rda")
+
+# #######
+# sconeNorm4 <- get_normalized(scone_obj4, "none,fq,ruv_k=3,no_bio,no_batch")
+# rownames(sconeNorm4) <- rowData(filtered)[,2]
+# logSconeNorm4 <- log2(sconeNorm4+1)
+# save(sconeNorm4, logSconeNorm4, file="dataObjects/RCOB_normCounts4.Rda")
+
+```
+
+
+##Correlation of QC metrics with expression PCs for scone norm 1
+#####using none,sum,ruv_k=3,no_bio,batch
+```{r SCONEnorm_qc, echo=FALSE, eval=TRUE}
+
+# pca_sconeNorm <- prcomp(t(logSconeNorm))
+pca_sconeNorm <- fastpca(logSconeNorm)
+
+cors <- lapply(1:5, function(i) abs(cor(pca_sconeNorm[,i], qc, method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(colnames(qc), 5), levels=colnames(qc)),
+                   Dimension=as.factor(rep(paste0("PC", 1:5), each=ncol(qc))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1) + 
+  ggtitle(paste0(scone1, "\nCorrelation between QC and expression PCA")) -> fig_barplot
+fig_barplot
+pdf(file=paste0(outDir, "viz/", exptStr, scone1, "_corQCandExprPCA.pdf"))
+fig_barplot
+dev.off()
+################
+
+```
+
+##Correlation of QC metrics with expression PCs for scone norm 2
+#####using none,sum,qc_k=3,no_bio,batch
+```{r moreSconeNormQC, echo=FALSE, eval=TRUE}
+             
+###################
+
+# pca_sconeNorm2 <- prcomp(t(logSconeNorm2))
+pca_sconeNorm2 <- fastpca(logSconeNorm2)
+
+cors <- lapply(1:5, function(i) abs(cor(pca_sconeNorm2[,i], qc, method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(colnames(qc), 5), levels=colnames(qc)),
+                   Dimension=as.factor(rep(paste0("PC", 1:5), each=ncol(qc))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1) + 
+  ggtitle(paste0(scone2, "\nCorrelation between QC and expression PCA")) -> fig_barplot
+fig_barplot
+pdf(file=paste0(outDir, "viz/", exptStr, scone2, "_corQCandExprPCA.pdf"))
+fig_barplot
+dev.off()
+
+```
+
+
+## Plots of scone normalized data
+####Decided to move forward with the : 
+```{r sconeNorm_plot, echo=FALSE, eval=TRUE}
+####Decided to go with logSconeNorm2 using qc factors
+
+vars <- rowVars(logSconeNorm)
+names(vars) <- rownames(logSconeNorm)
+vars <- sort(vars, decreasing = TRUE)
+vargenes <- names(vars)[1:1000]
+
+# pca_sconeNorm <- prcomp(t(logSconeNorm[vargenes, ]))
+pca_sconeNorm <- fastpca(logSconeNorm[vargenes, ])
+
+tsne_data <- Rtsne(pca_sconeNorm[,1:10], pca=FALSE, max_iter = 5000)
+
+plot(pca_sconeNorm[,1:2], pch=19, col=colb[colData(filtered)$batch])
+legend("topleft", legend=levels(batch), fill=colb, cex=0.5)
+plot(tsne_data$Y, pch=19, cex = 0.5, col=colb[colData(filtered)$batch], main = "t-SNE: 1Kvar genes, sconeNorm, 10 PCs")
+legend("topleft", legend=levels(batch), fill=colb, cex=0.5)
+
+fig_data <- data.frame(PC1=pca_sconeNorm[,1], PC2=pca_sconeNorm[,2], qc, TSNE1=tsne_data$Y[,1], TSNE2=tsne_data$Y[,2],
+                   Slc17a7 = logSconeNorm[which(rowData(filtered)$Symbol == "Slc17a7"),],
+                   Gad1 = logSconeNorm[which(rowData(filtered)$Symbol == "Gad1"),],
+                   tdTomato = logSconeNorm[which(rowData(filtered)$Symbol == "tdTomato"),],
+                   Ebf1 = logSconeNorm[which(rowData(filtered)$Symbol == "Ebf1"),],
+                   Reln = logSconeNorm[which(rowData(filtered)$Symbol == "Reln"),],
+                   Thy1 = logSconeNorm[which(rowData(filtered)$Symbol == "Thy1"),],
+                   Coch = logSconeNorm[which(rowData(filtered)$Symbol == "Coch"),])
+
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_pca
+
+fig_tsne <- ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_tsne
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Slc17a7)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Gad1)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Ebf1)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = tdTomato)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Reln)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Thy1)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = Coch)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_logSconeNorm_50VarGenes_heatmap.pdf"), title = "post-SCONEnorm 50 varGene heatmap")
+clusterExperiment::plotHeatmap(logSconeNorm[vargenes[1:50],], sampleData=data.frame(batch = colData(filtered)[,1]), clusterLegend = list(batch=colb), main="50 most variable genes", breaks=0.99)
+dev.off()
+clusterExperiment::plotHeatmap(logSconeNorm[vargenes[1:50],], sampleData=data.frame(batch = colData(filtered)[,1]), clusterLegend = list(batch=colb), main="Scone normalized data, \n50 most variable genes", breaks=.99)
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_logSconeNorm_poscon_heatmap.pdf"), title = paste0(exptStr, " post-SCONEnorm poscon heatmap"))
+clusterExperiment::plotHeatmap(logSconeNorm[poscon,], sampleData=data.frame(batch = batch), clusterLegend = list(batch=colb), main="Positive controls", breaks=0.99)
+dev.off()
+clusterExperiment::plotHeatmap(logSconeNorm[rowData(filtered)$poscon,], sampleData=data.frame(batch = colData(filtered)[,1]), clusterLegend = list(batch=colb), main=paste0(exptStr, " scone normalized data, positive controls"), breaks=.99)
+pdf(file=paste0(outDir, "viz/", exptStr, "_logSconeNorm_poscon2_heatmap.pdf"), title = paste0(exptStr, " post-SCONEnorm poscon2 heatmap"))
+clusterExperiment::plotHeatmap(logSconeNorm[obClusterGenes,], sampleData=data.frame(batch = batch), clusterLegend = list(batch=colb), main="Positive controls 2", breaks=0.99)
+dev.off()
+clusterExperiment::plotHeatmap(logSconeNorm[obClusterGenes,], sampleData=data.frame(batch = colData(filtered)[,1]), clusterLegend = list(batch=colb), main=paste0(exptStr, " scone normalized data, positive controls 2"), breaks=.99)
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_logSconeNorm_negconeval_heatmap.pdf"), title = "post-SCONEnorm negative controls heatmap")
+clusterExperiment::plotHeatmap(logSconeNorm[rowData(filtered)$negcon_eval,], sampleData=data.frame(batch = colData(filtered)$batch), clusterLegend = list(batch=colb), main="example negative controls", breaks=0.99)
+dev.off() 
+clusterExperiment::plotHeatmap(logSconeNorm[rowData(filtered)$negcon_eval,],  sampleData=data.frame(batch = colData(filtered)[,1]), clusterLegend = list(batch=colb), main=paste0(exptStr, " scone normalized data, example negative controls"), breaks=.99)
+############################
+
+```
+
+#### ZINB-WaVE --> running ZINB-WaVE on the cluster 
+```{r zinb, echo = FALSE, eval=FALSE}
+
+run_zinbwave <- TRUE
+if(run_zinbwave) {
+library(BiocParallel)
+library(doParallel)
+registerDoParallel(3)
+register(DoparParam())
+
+
+zinb <- zinbFit(filtered[vargenes,], X = "~ log10_total_counts + pct_counts_in_top_200_features + ribo_pct", K=10, epsilon=1000)
+save(zinb, file="RCOB2AB5_zinbwave_TC_ribo_batch.rda")
+} else {
+  load("RCOB_zinbwave_totalCounts.rda")
+}
+#+ pct_counts_top_500_features
+W <- getW(zinb)
+d <- dist(W)
+tsne_zinb <- Rtsne(d, is_distance = TRUE, pca = FALSE, max_iter=5000)
+
+save(W, file = "RCOB_1Kvar_zinbW.Rda")
+
+```
+
+##t-SNE by batch to visualize the ZINB-WaVE results
+```{r visualizingZINBoutput}
+
+library(zinbwave)
+
+importFiltered <- FALSE
+if (importFiltered){ 
+load(paste0(dataDir, exptStr, "_filtered.rda"))
+load(paste0(dataDir, exptStr, "_filteredCounts.rda"))
+} 
+
+load(paste0("dataObjects/", exptStr, "_zinbwave1Kvar_TC_top200_ribo.Rda"))
+load(paste0("dataObjects/", exptStr, "_zinbW.Rda"))
+load(paste0("dataObjects/", exptStr, "_tsne_zinb.Rda"))
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_tSNE_ZINBWaVE_byBatch.pdf"), title = "t-SNE of ZINB-WaVE")
+plot(tsne_zinb$Y, pch=19, cex=0.4, col=colb[batch], main = "t-SNE (ZINB-WaVE), 1KvarGenes,K=10")
+legend("topleft", legend=levels(batch), fill=colb, cex=0.5)
+dev.off()
+plot(tsne_zinb$Y, pch=19, cex=0.4, col=colb[batch], main = "t-SNE (ZINB-WaVE), 1KvarGenes, K=10")
+legend("topleft", legend=levels(batch), fill=colb, cex=0.5)
+
+zinbObj <- zinbwave(filtered[vargenes[1:1000],], fitted_model = zinb, K = 10, epsilon = 1000)
+
+```
+
+
+###Correlation of QC metrics with ZINB-WaVE W projection components
+```{r correlationQC&ZinB}
+zbrd <- getW(zinb)
+cors <- lapply(1:5, function(i) abs(cor(zbrd[,i], qc, method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(colnames(qc), 5), levels=colnames(qc)),
+                   Dimension=as.factor(rep(paste0("zinbW", 1:5), each=ncol(qc))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1) + 
+  ggtitle("Correlation between QC and ZINBWaVE W (1Kvar)") -> fig_barplot
+fig_barplot
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb2KTCRiboBatch_corQCandZinbW.pdf")) 
+fig_barplot
+dev.off()
+
+```
+
+## Clustering with SNN on 1. ZINB-WaVE (top 1K variable genes) output; 2. top 50 PCs of 1K most variable genes, scone norm
+
+###SNN clustering on ZINB-WaVE output with top 1K most variable genes
+```{r seurat_zinb, echo=FALSE, eval=TRUE}
+
+colRKC <- c("deepskyblue", "deeppink", "darkviolet", "gold", "chocolate4", "pink", "darkorange2", "chartreuse3", "slategray2", "firebrick3", "magenta")
+
+library(dplyr)
+library(Matrix)
+
+zinbObj <- zinbwave(filtered[vargenes[1:1000],], fitted_model = zinb, K = 10, epsilon = 1000)
+
+seu <- CreateSeuratObject(raw.data = sconeNorm, min.cells = 1, min.genes = 1, 
+     project = "RCOB")
+
+seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", 
+                       slot = "cell.embeddings",
+                       new.data = reducedDim(zinbObj, "zinbwave"))
+
+seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", slot = "key",
+                       new.data = "zinbwave")
+
+resolution = 1
+seu <- FindClusters(object = seu, reduction.type = "zinbwave", 
+                    dims.use = 1:10, #this should match K
+                    resolution = resolution, print.output = 0, save.SNN = TRUE)
+
+so <- seu
+## Build SNN
+# k.param = 10
+# k.scale = 10
+# n.cells = NCOL(filtered)
+# data.use <- getW(zinb)
+# my.knn <- FNN::get.knn(as.matrix(data.use), k = min(k.scale * k.param, n.cells - 1))
+# nn.ranked <- cbind(1:n.cells, my.knn$nn.index[, 1:(k.param-1)])
+# nn.large <- my.knn$nn.index
+# 
+# w <- Seurat:::CalcSNNSparse(cell.names = colnames(filtCounts),
+#                             k.param = k.param,
+#                             nn.large = nn.large,
+#                             nn.ranked = nn.ranked,
+#                             prune.SNN = 1/15,
+#                             print.output = FALSE)
+
+# so@snn <- w
+
+## Run modularity clustering
+# resolution <- 0.6
+# so <- Seurat:::RunModularityClustering(object = so, SNN = w, 
+#                                          modularity = 1, resolution = resolution,
+#                                          algorithm = 1, n.start = 100, 
+#                                          n.iter = 10, random.seed = 0,
+#                                          print.output = FALSE, temp.file.location = NULL)
+# so <- Seurat:::GroupSingletons(so, so@snn)
+# name <- paste("res.", resolution, sep = "")
+# so <- StashIdent(so, name)
+
+z_cl <- so@ident
+names(z_cl) <- paste0(names(so@ident))
+
+table(z_cl)
+##########---------##############
+# RunPCA(seu2)
+# seu2 <- FindVariableGenes(object = seu2, mean.function = ExpMean, dispersion.function = LogVMR, 
+#     do.plot = FALSE)
+# hv.genes <- head(rownames(seu2@hvg.info), 1000)
+# mito.genes <- grep(pattern = "^mt-", x = rownames(x = seu2@data), value = TRUE)
+# percent.mito <- Matrix::colSums(seu2@raw.data[mito.genes, ])/Matrix::colSums(seu2@raw.data)
+# seu2 <- ScaleData(object = seu2, genes.use = hv.genes, display.progress = FALSE, 
+#     vars.to.regress = percent.mito, do.par = TRUE, num.cores = 4)
+# seu2 <- RunPCA(object = seu2, pc.genes = hv.genes, pcs.compute = 100, do.print = TRUE, 
+#     pcs.print = 1:5, genes.print = 5)
+# seu2 <- FindClusters(object = seu2, reduction.type = "pca", dims.use = 1:20, resolution = 1, 
+#     save.SNN = TRUE, n.start = 10, nn.eps = 0.5, print.output = FALSE)
+
+##########_---------#############
+
+# plot(W, pch=19, col=colRKC[z_cl])
+# colnames(data.use) <- paste0("W", 1:NCOL(W))
+# rownames(data.use) <- names(z_cl)
+write.table(data.frame(colnames(sconeNorm), paste0("zinbCl", z_cl)), sep="\t", quote=FALSE,
+            file = paste0(outDir, "clustering/", exptStr, "_", resolution, "_zinb_SNN_RCOB_clusters.txt"))
+# pairs(W[,1:5], cex = 0.3, col=colRKC[z_cl])
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colRKC[z_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0("t-SNE (ZINB-WaVE) 1KvarGenes, clustered by zinbwave\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("topleft", legend=levels(z_cl), fill=colRKC, cex=0.6)
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colb[batch], xlab="TSNE 1", ylab="TSNE 2", main="t-SNE (ZINB-WaVE) 1KvarGenes, clustered by zinbwave")
+legend("bottomleft", legend=levels(batch), fill=colb, cex=0.6)
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_Seurat_tSNE.pdf"), title = "Zinb Seurat Clusters tSNE")
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colRKC[z_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0("t-SNE (ZINB-WaVE) 1KvarGenes, clustered by Seurat\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("topleft", legend=levels(z_cl), fill=colRKC, cex=0.5)
+dev.off()
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_batch_tSNE.pdf"), title = "Zinb by batch tSNE")
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colb[batch], xlab="TSNE 1", ylab="TSNE 2", main="t-SNE (ZINB-WaVE) 1KvarGenes by batch")
+legend("bottomleft", legend=levels(batch), fill=colb, cex=0.6)
+dev.off()
+
+zinbcl1 <- ClusterExperiment(sconeNorm, clusters=z_cl, transformation = log1p)
+zinbcl1 <- makeDendrogram(zinbcl1, reduceMethod = "var", nDims=1000)
+plotDendrogram(zinbcl1)
+
+# zinbcl1 <- mergeClusters(zinbcl1, mergeMethod = "locfdr", cutoff = 0.05, plotInfo="mergeMethod")
+colData(zinbcl1)$batch <- colData(filtered)$batch
+#zm_cl <- zinbcl1@clusterMatrix[,1]
+
+plotClusters(zinbcl1, sampleData = "batch", whichClusters = "all", colPalette = colRKC)
+
+# plot(data.use, pch=19, cex=0.5, col=colRKC[z_cl])
+pairs(W[,1:5], cex = 0.3, col=colRKC[z_cl])
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_Seurat_heatmap.pdf"), title = "Zinb Seurat Clusters heatmap")
+clusterExperiment::plotHeatmap(log2(assay(zinbcl1)[obClusterGenes,]+1), clusterSamplesData = zinbcl1@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=batch), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("SNN/Seurat Zinb, select markers"))
+dev.off()
+
+#####05/10/18:  make ce from just samples 2A, 2B using scone50PC_clustering; then make heatmap with marker genes.
+colb <- c("dodgerblue", "purple")
+exptStr <- "RCOB2AB"
+ce <- ClusterExperiment(sconeNorm, clusters=scone50_cl, transformation = log1p)
+ce <- makeDendrogram(ce, reduceMethod = "var", nDims=1000)
+plotDendrogram(ce)
+genes <- c("Cadps2", "Crispld2", "Arhgap20", "Chl1", "Ly6g6e", "Coch", "Vdr", "Cplx3", "Ebf1", "Doc2b", "Gad1", "Gad2", "Mobp", "Plp1", "Mbp", "Satb1", "Slc17a7")
+pdf(file=paste0(outDir, "viz/", exptStr, "_scone50PC_SNN_marker_heatmap.pdf"), title = "OB 2A, 2B, scone50PC seurat/SNN clusters \n marker heatmap")
+clusterExperiment::plotHeatmap(log2(assay(ce)[genes,]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=batch), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("SNN/Seurat scone50PC, select markers"))
+dev.off()
+
+top10_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "OneAgainstAll", number=10)
+top500_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "OneAgainstAll", number=500)
+write.table(top500_scone50, sep="\t", quote=FALSE,
+            file = paste0(outDir, "DE/", exptStr, "_scone50SNN_sconeNorm_oneVallDE500.txt"))
+
+top5pairs_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "Pairs", number=5)
+top100pairs_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "Pairs", number=100)
+write.table(top100pairs_scone50, sep="\t", quote=FALSE,
+            file = paste0(outDir, "DE/", exptStr, "_scone50_clSNN_sconeNorm_pairsDE100.txt"))
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_heatmap_oneVall10_SNNscone50_sconeNorm.pdf"), height=8.5, width=11)
+clusterExperiment::plotHeatmap(log2(sconeNorm[unique(top10_zinb$IndexInOriginal),]+1), clusterSamplesData = zinbcl1@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste(exptStr, "_oneVall10_SNNscone50_sconeNorm")) 
+dev.off()
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_heatmap_pairWise5_SNNscone50_sconeNorm.pdf"), height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[unique(top5pairs_scone50$IndexInOriginal),]+1), clusterSamplesData = scone50cl1@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("pairWise5_SNNscone501Kvar_sconeNorm"))
+dev.off()
+
+
+```
+
+###Removing Clusters that are contaminants and/or difficult to define and preparing to run ZINB-WaVE again on the selected cells
+
+# Normalization
+### SCONE --> set-up to run on the cluster
+```{r reScone, eval=FALSE}
+
+run_scone <- TRUE
+if(run_scone) {
+scone_obj <- SconeExperiment(filtered,
+               which_qc = which(colnames(colData(filteredS)) %in% colnames(qc)),
+               which_negconruv = 5L,
+               which_negconeval = 4L,
+               which_poscon = 3L,
+               which_batch = 1L,
+               which_bio = 2L)
+save(scone_obj, file=paste0(dataDir, exptStr, "_scone_obj1.Rda"))
+} else { 
+  load("RCOB_scone_normMats.Rda")
+}
+```
+```{r R21grantProgress}
+###John wants to remove Seurat/SNN clusters 3,5,9,10,11
+
+z_cl2 <- z_cl[!(z_cl %in% c(3,5,9,10,11))]
+#####----_prep to run ZINB-WaVE for the second time on the selected OB2AB5 samples
+###---first, subset the filtered SE
+filtered2 <- filtered[,names(z_cl2)]
+###---then create new top 1000 most variable gene list based on SCONE normed data
+vars <- rowVars(logSconeNorm[,names(z_cl2)])
+names(vars) <- rownames(logSconeNorm)
+vars <- sort(vars, decreasing = TRUE)
+vargenes <- names(vars)[1:1000]
+save(vargenes, filtered2, file=paste0("dataObjects/", exptStr, "_forZinbwaveRun2.Rda"))
+
+
+scmat <- sconeNorm[,names(z_cl2)]
+zinbcl2 <- zinbcl1[,names(z_cl2)]
+batch2 <- batch[names(z_cl2)]
+zinbcl2 <- makeDendrogram(zinbcl2, reduceMethod = "var", nDims=1000)
+plotDendrogram(zinbcl2)
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_Seurat_SelectedCl_heatmap.pdf"), title = "Zinb Seurat Clusters heatmap")
+clusterExperiment::plotHeatmap(log2(assay(zinbcl2)[obClusterGenes,]+1), clusterSamplesData = zinbcl2@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl2, batch=batch2), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("SNN/Seurat Zinb, select markers"))
+dev.off()
+
+vargenes <- names(vars)[1:1000]
+pca_sconeNorm2 <- fastpca(log2(sconeNorm[vargenes, names(z_cl2)] + 0.1))
+
+tsne_scone <- Rtsne(pca_sconeNorm2[,1:50], pca=FALSE, max_iter = 5000)
+plot(tsne_scone$Y, pch=19, cex = 0.4, col=colRKC[z_cl2], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, " t-SNE (sconeNorm PCA10), clustered by Seurat/ZINB\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("bottomleft", legend=levels(z_cl2), fill=colRKC, cex=0.5)
+
+
+
+```
+
+##t-SNE by batch to visualize the new ZINB-WaVE results
+###change the expt name to RCOB2AB5S for RCOB2AB5 select
+```{r visualizingZINBoutput}
+exptStr <- "RCOB2AB5"
+library(zinbwave)
+
+importFiltered <- FALSE
+if (importFiltered){ 
+load(paste0(dataDir, exptStr, "_filtered.rda"))
+load(paste0(dataDir, exptStr, "_filteredCounts.rda"))
+} 
+
+#####-----first loading ZINB-WaVE using total counts (TC), % in top 200, & ribo %
+load(paste0("dataObjects/", exptStr, "_zinbwave1Kvar_TC_top200_ribo-2.Rda"))
+load(paste0("dataObjects/", exptStr, "_zinbW-2.Rda"))
+load(paste0("dataObjects/", exptStr, "_tsne_zinb-2.Rda"))
+
+#####New experiment name/string from here forward
+exptStr <- "RCOB2AB5S"
+batch <- batch2
+
+###Correlation of QC metrics with ZINB-WaVE W projection
+qc <- qc[names(batch),]
+zbrd <- getW(zinb)
+cors <- lapply(1:5, function(i) abs(cor(zbrd[,i], qc, method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(colnames(qc), 5), levels=colnames(qc)),
+                   Dimension=as.factor(rep(paste0("zinbW", 1:5), each=ncol(qc))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1) + 
+  ggtitle("Correlation between QC and ZINBWaVE W (1Kvar)") -> fig_barplot
+fig_barplot
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb1KTCtop200ribo_corQCandZinbW.pdf")) 
+fig_barplot
+dev.off()
+
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_tSNE_ZINBWaVE_TCtop200ribo_byBatch.pdf"), title = "t-SNE of ZINB-WaVE")
+plot(tsne_zinb$Y, pch=19, cex=0.4, col=colb[batch], main = paste0(exptStr, "_t-SNE ZINB-WaVE  (TCtop200ribo_byBatch,\n 1KvarGenes,K=10)"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.5)
+dev.off()
+plot(tsne_zinb$Y, pch=19, cex=0.4, col=colb[batch], main = paste0(exptStr, "_t-SNE ZINB-WaVE  (TCtop200ribo_byBatch,\n 1KvarGenes,K=10)"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.5)
+#zinbObj <- zinbwave(filtered[vargenes[1:1000],], fitted_model = zinb, K = 10, epsilon = 1000)
+
+#####-----#####
+#####-----now loading ZINB-WaVE using total counts (TC), % in top 200, & batch
+exptStr <- "RCOB2AB5"
+load(paste0("dataObjects/", exptStr, "_zinbwave1Kvar_TC_top200_batch-3.Rda"))
+load(paste0("dataObjects/", exptStr, "_zinbW-3.Rda"))
+load(paste0("dataObjects/", exptStr, "_tsne_zinb-3.Rda"))
+exptStr <- "RCOB2AB5S"
+
+###Correlation of QC metrics with ZINB-WaVE W projection
+qc <- qc[names(batch),]
+zbrd <- getW(zinb)
+cors <- lapply(1:5, function(i) abs(cor(zbrd[,i], qc, method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(colnames(qc), 5), levels=colnames(qc)),
+                   Dimension=as.factor(rep(paste0("zinbW", 1:5), each=ncol(qc))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1) + 
+  ggtitle("Correlation between QC and ZINBWaVE W (1Kvar)") -> fig_barplot
+fig_barplot
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb1KTCtop200batch_corQCandZinbW.pdf")) 
+fig_barplot
+dev.off()
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_tSNE_ZINBWaVE_TCtop200batch_byBatch.pdf"), title = "t-SNE of ZINB-WaVE")
+plot(tsne_zinb$Y, pch=19, cex=0.4, col=colb[batch], main = paste0(exptStr, "_t-SNE ZINB-WaVE  (TCtop200batch_byBatch,\n 1KvarGenes,K=10)"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.5)
+dev.off()
+plot(tsne_zinb$Y, pch=19, cex=0.4, col=colb[batch], main = paste0(exptStr, "_t-SNE ZINB-WaVE  (TCtop200batch_byBatch,\n 1KvarGenes,K=10)"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.5)
+zinbObj <- zinbwave(filtered[vargenes[1:1000],names(batch2)], fitted_model = zinb, K = 10, epsilon = 1000)
+
+```
+
+
+
+```{r Seurat_SNN_clust_ZINB}
+library(dplyr)
+library(Matrix)
+sconeNormS <- sconeNorm[,names(batch)]
+
+colRKC <- c("deepskyblue", "deeppink", "darkviolet", "gold", "chocolate4", "pink", "darkorange2", "chartreuse3", "slategray2", "firebrick3", "magenta", "gray", "black")
+
+#zinbObj <- zinbwave(filtered[vargenes[1:1000],], fitted_model = zinb, K = 10, epsilon = 1000)
+
+seu <- CreateSeuratObject(raw.data = sconeNormS, min.cells = 1, min.genes = 1, 
+     project = "RCOB")
+
+seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", 
+                       slot = "cell.embeddings",
+                       new.data = reducedDim(zinbObj, "zinbwave"))
+
+seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", slot = "key",
+                       new.data = "zinbwave")
+
+resolution = 1
+seu <- FindClusters(object = seu, reduction.type = "zinbwave", 
+                    dims.use = 1:10, #this should match K
+                    resolution = resolution, print.output = 0, save.SNN = TRUE)
+
+z_cl <- seu@ident
+names(z_cl) <- paste0(names(seu@ident))
+
+table(z_cl)
+
+z_cl <- as.factor(as.numeric(z_cl))
+names(z_cl) <- colnames(sconeNormS)
+
+write.table(data.frame(colnames(sconeNormS), paste0("zinbCl", z_cl)), sep="\t", quote=FALSE,
+            file = paste0(outDir, "clustering/", exptStr, "_", resolution, "_zinb_SNN_clusters.txt"))
+# pairs(W[,1:5], cex = 0.3, col=colRKC[z_cl])
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colRKC[z_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, " t-SNE (ZINB-WaVE), clustered by Seurat\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("topleft", legend=levels(z_cl), fill=colRKC, cex=0.6)
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colb[batch], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, "_t-SNE (ZINB-WaVE) by batch"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.6)
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_Seurat_tSNE.pdf"), title = "Zinb Seurat Clusters tSNE")
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colRKC[z_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, " t-SNE (ZINB-WaVE), clustered by Seurat\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("topleft", legend=levels(z_cl), fill=colRKC, cex=0.6)
+dev.off()
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_batch_tSNE.pdf"), title = "Zinb by batch tSNE")
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colb[batch], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, "_t-SNE (ZINB-WaVE) by batch"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.6)
+dev.off()
+
+zinbcl1 <- ClusterExperiment(sconeNormS, clusters=z_cl, transformation = log1p)
+zinbcl1 <- makeDendrogram(zinbcl1, reduceMethod = "var", nDims=1000)
+plotDendrogram(zinbcl1)
+
+# zinbcl1 <- mergeClusters(zinbcl1, mergeMethod = "locfdr", cutoff = 0.05, plotInfo="mergeMethod")
+colData(zinbcl1)$batch <- batch
+#zm_cl <- zinbcl1@clusterMatrix[,1]
+
+plotClusters(zinbcl1, sampleData = "batch", whichClusters = "all", colPalette = colRKC)
+
+# plot(data.use, pch=19, cex=0.5, col=colRKC[z_cl])
+pairs(W[,1:5], cex = 0.3, col=colRKC[z_cl])
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_Seurat_heatmap.pdf"), title = "Zinb Seurat Clusters heatmap")
+clusterExperiment::plotHeatmap(log2(assay(zinbcl1)[obClusterGenes,]+1), clusterSamplesData = zinbcl1@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=batch), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("SNN/Seurat Zinb, select markers"))
+dev.off()
+
+top5pairs_zinb <- getBestFeatures(sconeNormS, cluster=z_cl, isCount=TRUE, contrastType = "Pairs", number=5)
+pdf(file=paste0(outDir, "viz/", exptStr, "_heatmap_pairWise5_SNNzinb.pdf"), height=8.5, width=11)
+plotHeatmap(log2(sconeNormS[unique(top5pairs_zinb$IndexInOriginal),]+1), clusterSamplesData = zinbcl1@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=batch), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("pairWise5_SNNzinb"))
+dev.off()
+
+
+
+```
+
+###Now to do SNN on the first several PCs of the scone norm matrix
+```{r SNNsconeNormSPCA}
+library(rARPACK)
+pcaSconeS <- fastpca(sconeNormS)
+pca <- prcomp(t(sconeNormS), scale. = TRUE)
+screeplot(pca, type = "lines", npcs = 50, main = "Expression PCA screeplot")
+filteredS <- filtered[,colnames(sconeNormS)]
+sceScone <- SingleCellExperiment(assays = list(counts = sconeNormS))
+colData(sceScone) <- colData(filteredS)
+rowData(sceScone) <- rowData(filteredS)
+tsne_data <- Rtsne(pca$x[,1:20], pca = FALSE)
+reducedDims(sceScone) <- SimpleList(PCA=pca$x, TSNE=tsne_data$Y)
+
+seu2 <- CreateSeuratObject(raw.data = sconeNormS, min.cells = 1, min.genes = 1, 
+     project = "RCOB")
+
+seu2 <- SetDimReduction(object = seu2, reduction.type = "PCA", 
+                       slot = "cell.embeddings",
+                       new.data = reducedDim(sceScone, "PCA"))
+
+seu2 <- SetDimReduction(object = seu2, reduction.type = "PCA", slot = "key",
+                       new.data = "PCA")
+
+resolution = 1
+seu2 <- FindClusters(object = seu2, reduction.type = "PCA", 
+                    dims.use = 1:20, #this should match dimensions
+                    resolution = resolution, print.output = 0, save.SNN = TRUE)
+
+
+s_cl <- seu2@ident
+names(s_cl) <- paste0(names(seu2@ident))
+
+table(s_cl)
+
+s_cl <- as.factor(as.numeric(s_cl))
+names(s_cl) <- colnames(sconeNormS)
+
+write.table(data.frame(colnames(sconeNormS), paste0("zinbCl", s_cl)), sep="\t", quote=FALSE,
+            file = paste0(outDir, "clustering/", exptStr, "_", resolution, "_zinb_SNN_clusters.txt"))
+# pairs(W[,1:5], cex = 0.3, col=colRKC[s_cl])
+plot(tsne_data$Y, pch=19, cex = 0.4, col=colRKC[s_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, " t-SNE (scone20PCA), clustered by Seurat\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("topleft", legend=levels(s_cl), fill=colRKC, cex=0.6)
+plot(tsne_data$Y, pch=19, cex = 0.4, col=colb[batch], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, "_t-SNE (scone20PCA) by batch"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.6)
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_Seurat_tSNE.pdf"), title = "Zinb Seurat Clusters tSNE")
+plot(tsne_data$Y, pch=19, cex = 0.4, col=colRKC[s_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, " t-SNE (scone20PCA), clustered by Seurat\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("topleft", legend=levels(s_cl), fill=colRKC, cex=0.6)
+dev.off()
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_batch_tSNE.pdf"), title = "Zinb by batch tSNE")
+plot(tsne_data$Y, pch=19, cex = 0.4, col=colb[batch], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, "_t-SNE (scone20PCA) by batch"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.6)
+dev.off()
+
+zinbcl1 <- ClusterExperiment(sconeNormS, clusters=z_cl, transformation = log1p)
+zinbcl1 <- makeDendrogram(zinbcl1, reduceMethod = "var", nDims=1000)
+plotDendrogram(zinbcl1)
+
+# zinbcl1 <- mergeClusters(zinbcl1, mergeMethod = "locfdr", cutoff = 0.05, plotInfo="mergeMethod")
+colData(zinbcl1)$batch <- batch
+#zm_cl <- zinbcl1@clusterMatrix[,1]
+
+plotClusters(zinbcl1, sampleData = "batch", whichClusters = "all", colPalette = colRKC)
+
+# plot(data.use, pch=19, cex=0.5, col=colRKC[z_cl])
+pairs(W[,1:5], cex = 0.3, col=colRKC[z_cl])
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_zinb_Seurat_heatmap.pdf"), title = "Zinb Seurat Clusters heatmap")
+clusterExperiment::plotHeatmap(log2(assay(zinbcl1)[obClusterGenes,]+1), clusterSamplesData = zinbcl1@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=batch), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("SNN/Seurat Zinb, select markers"))
+dev.off()
+
+top5pairs_zinb <- getBestFeatures(sconeNormS, cluster=z_cl, isCount=TRUE, contrastType = "Pairs", number=5)
+pdf(file=paste0(outDir, "viz/", exptStr, "_heatmap_pairWise5_SNNzinb.pdf"), height=8.5, width=11)
+plotHeatmap(log2(sconeNormS[unique(top5pairs_zinb$IndexInOriginal),]+1), clusterSamplesData = zinbcl1@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=batch), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("pairWise5_SNNzinb"))
+dev.off()
+```
+
+```{r SNNsconeTSNE}
+
+#####-----######------######
+
+
+seu3 <- CreateSeuratObject(raw.data = sconeNormS, min.cells = 1, min.genes = 1, 
+     project = "RCOB")
+
+seu3 <- SetDimReduction(object = seu3, reduction.type = "TSNE", 
+                       slot = "cell.embeddings",
+                       new.data = reducedDim(sceScone, "TSNE"))
+
+seu3 <- SetDimReduction(object = seu3, reduction.type = "TSNE", slot = "key",
+                       new.data = "TSNE")
+
+resolution = 0.6
+seu3 <- FindClusters(object = seu3, reduction.type = "TSNE", 
+                    dims.use = 1:2, #this should match dimensions
+                    resolution = resolution, print.output = 0, save.SNN = TRUE)
+
+
+s_cl2 <- seu3@ident
+names(s_cl2) <- paste0(names(seu3@ident))
+
+table(s_cl2)
+
+s_cl2 <- as.factor(as.numeric(s_cl2))
+names(s_cl2) <- colnames(sconeNormS)
+
+write.table(data.frame(colnames(sconeNormS), paste0("sconeTSNE", s_cl2)), sep="\t", quote=FALSE,
+            file = paste0(outDir, "clustering/", exptStr, "_", resolution, "_sconeTSNE_SNN_clusters.txt"))
+# pairs(W[,1:5], cex = 0.3, col=colRKC[s_cl])
+plot(tsne_data$Y, pch=19, cex = 0.4, col=colRKC[s_cl2], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, " t-SNE, clustered by Seurat on t-SNE\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("bottomleft", legend=levels(s_cl2), fill=colRKC, cex=0.55)
+plot(tsne_data$Y, pch=19, cex = 0.4, col=colb[batch], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, "_t-SNE (scone20PCA) by batch"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.6)
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_sconetSNE_Seurat_tSNE.pdf"), title = "sconeTSNE Seurat Clusters tSNE")
+plot(tsne_data$Y, pch=19, cex = 0.4, col=colRKC[s_cl2], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, " t-SNE, clustered by Seurat on t-SNE\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("topleft", legend=levels(s_cl2), fill=colRKC, cex=0.6)
+dev.off()
+pdf(file=paste0(outDir, "viz/", exptStr, "_scone20PCA_batch_tSNE.pdf"), title = "Zinb by batch tSNE")
+plot(tsne_data$Y, pch=19, cex = 0.4, col=colb[batch], xlab="TSNE 1", ylab="TSNE 2", main=paste0(exptStr, "_t-SNE (scone20PCA) by batch"))
+legend("topleft", legend=levels(batch), fill=colb, cex=0.6)
+dev.off()
+
+ce <- ClusterExperiment(sconeNormS, clusters=s_cl2, transformation = log1p)
+ce <- makeDendrogram(ce, reduceMethod = "var", nDims=1000)
+plotDendrogram(ce)
+
+# zinbcl1 <- mergeClusters(zinbcl1, mergeMethod = "locfdr", cutoff = 0.05, plotInfo="mergeMethod")
+colData(ce)$batch <- batch
+#zm_cl <- zinbcl1@clusterMatrix[,1]
+
+plotClusters(ce, sampleData = "batch", whichClusters = "all", colPalette = colRKC)
+
+# plot(data.use, pch=19, cex=0.5, col=colRKC[s_cl2])
+pairs(W[,1:5], cex = 0.3, col=colRKC[s_cl2])
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_sconeTSNE_Seurat_heatmap.pdf"), title = "sconeTSNE Seurat Clusters heatmap")
+clusterExperiment::plotHeatmap(log2(assay(ce)[obClusterGenes,]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=s_cl2, batch=batch), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("SNN/Seurat sconeTSNE, select markers"))
+dev.off()
+
+top5pairs_sconeTSNE <- getBestFeatures(sconeNormS, cluster=s_cl2, isCount=TRUE, contrastType = "Pairs", number=5)
+pdf(file=paste0(outDir, "viz/", exptStr, "_heatmap_pairWise5_SNNsconeTSNE.pdf"), height=8.5, width=11)
+clusterExperiment::plotHeatmap(log2(sconeNormS[unique(top5pairs_sconeTSNE$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=s_cl2, batch=batch), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("pairWise5_SNNsconeTSNE"))
+dev.off()
+
+
+
+```
+
+
+
+
+#Everything below this point is older code.
+
+
+
+
+
+
+```{r seurat_zinb2, echo=FALSE, eval=FALSE}
+
+library(dplyr)
+library(Matrix)
+
+so <- CreateSeuratObject(raw.data = sconeNorm, min.cells = 1, min.genes = 1, 
+    project = "regen1")
+
+
+## Build SNN
+k.param = 10
+k.scale = 10
+n.cells = 942
+data.use <- getW(zinb)
+my.knn <- FNN::get.knn(as.matrix(data.use), k = min(k.scale * k.param, n.cells - 1))
+nn.ranked <- cbind(1:n.cells, my.knn$nn.index[, 1:(k.param-1)])
+nn.large <- my.knn$nn.index
+
+w <- Seurat:::CalcSNNSparse(cell.names = colnames(filtCounts),
+                            k.param = k.param,
+                            nn.large = nn.large,
+                            nn.ranked = nn.ranked,
+                            prune.SNN = 1/15,
+                            print.output = FALSE)
+
+so@snn <- w
+
+## Run modularity clustering
+#resList <- c(1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0)
+resList <- c(0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0)
+#cors <- lapply(1:5, function(i) abs(cor(pca_sconeNorm$x[,i], qc, method="spearman")))
+resolution <- 1
+so <- Seurat:::RunModularityClustering(object = so, SNN = w, 
+                                         modularity = 1, resolution = resolution,
+                                         algorithm = 1, n.start = 100, 
+                                         n.iter = 10, random.seed = 0,
+                                         print.output = FALSE, temp.file.location = NULL)
+so <- Seurat:::GroupSingletons(so, so@snn)
+name <- paste("res.", resolution, sep = "")
+so <- StashIdent(so, name)
+
+z_cl0 <- so@ident
+names(z_cl0) <- paste0(names(so@ident))
+z_cl0 <- as.matrix(z_cl0)
+SNNcl <- lapply(resList, function(i) {
+  resolution <- i
+  so <- Seurat:::RunModularityClustering(object = so, SNN = w, 
+                                         modularity = 1, resolution = resolution,
+                                         algorithm = 1, n.start = 100, 
+                                         n.iter = 10, random.seed = 0,
+                                         print.output = FALSE, temp.file.location = NULL)
+  so <- Seurat:::GroupSingletons(so, so@snn)
+  name <- paste("res.", resolution, sep = "")
+  so <- StashIdent(so, name)
+  z_cl1 <- so@ident
+  names(z_cl1) <- paste0(names(so@ident))
+  #return(z_cl)
+  z_cl0 <<- cbind(z_cl0, z_cl1)
+})
+
+z_clCombo <- z_cl0[,-1]
+colnames(z_clCombo) <- resList
+
+zinbce <- clusterExperiment(sconeNorm, clusters=z_clCombo, clusterTypes = as.character(resList),
+                       transformation = log1p)
+#colnames(zinbce@clusterMatrix) <- as.character(resList)
+plotClusters(zinbce)
+zinbcl <- clusterMatrix(zinbce)
+zinbcm <- combineMany(zinbcl, proportion = .5, minSize = 10)
+zcm_cl <- as.factor(zinbcm$clustering)
+plotClusters(cbind(zinbcm$clustering, zinbcl))
+zinbnew <- clusterExperiment(sconeNorm, clusters=zinbcm$clustering, transformation = log1p)
+zinbnew <- makeDendrogram(zinbnew, dimReduce="var", ndims=1000)
+plotDendrogram(zinbnew)
+
+zinbnew <- mergeClusters(zinbnew, mergeMethod = "locfdr", cutoff = 0.08, plotInfo="mergeMethod")
+rm(zinbce)
+colData(zinbnew)$batch <- colData(filtered)$batch
+
+plotClusters(zinbnew, sampleData = "batch", whichClusters = "all", colPalette = colRKC)
+zcmm_cl <- zinbnew@clusterMatrix[,1]
+zcmm_cl <- factor(clusterMatrixNamed(zinbnew)[,"mergeClusters"],
+                      levels=clusterLegend(zinbnew)[["mergeClusters"]][, "name"])
+names(zcmm_cl) <- colnames(zinbnew)
+wh_rm <- which(zcmm_cl=="-1")
+# pca2 <- prcomp(t(lognorm[,-twh_rm]))
+
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colRKC[z_cl[-wh_rm]], xlab="TSNE 1", ylab="TSNE 2", main="t-SNE (ZINB-WaVE) 1KvarGenes, clustered by zinbwave\n combineMany, resolution range")
+legend("bottomleft", legend=levels(z_cl[-wh_rm]), fill=colRKC, cex=0.6)
+
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=cole[batch], xlab="TSNE 1", ylab="TSNE 2", main="t-SNE (ZINB-WaVE) 1KvarGenes, clustered by zinbwave")
+legend("bottomleft", legend=levels(batch), fill=cole, cex=0.6)
+
+plot(data.use, pch=19, cex=0.5, col=colRKC[zcmm_cl])
+pairs(W[,1:5], cex = 0.3, col=colRKC[zcmm_cl])
+```
+
+```{r zinbClusterExperimentObject, eval=FALSE}
+
+zinbce <- clusterExperiment(sconeNorm, clusters=cbind(as.character(zm_cl),      as.character(z_cl),as.character(zcmm_cl), as.character(zcm_cl)), clusterTypes = c("Merged", "res2", "CMmerged", "CM"),
+                       transformation = log1p)
+colnames(ce@clusterMatrix) <- c("zinbMerged", "zinbRes2", "zinbCMmerged", "zinbCM")
+
+```
+
+###SNN clustering on the scone norm, first 50 PCs
+```{r seurat_sconenorm_pca50, echo=FALSE, eval=TRUE}
+
+vargenes <- names(vars)[1:1000]
+pca_sconeNorm <- fastpca(log2(sconeNorm[vargenes,] + 0.1))
+#pca_sconeNorm <- fastpca(log2(sconeNorm + 0.1))
+so <- CreateSeuratObject(raw.data = sconeNorm, min.cells = 1, min.genes = 1, 
+    project = "RCOB")
+
+## Build SNN
+k.param = 10
+k.scale = 10
+n.cells = 942
+data.use <- pca_sconeNorm[,1:50]
+my.knn <- FNN::get.knn(as.matrix(data.use), k = min(k.scale * k.param, n.cells - 1))
+nn.ranked <- cbind(1:n.cells, my.knn$nn.index[, 1:(k.param-1)])
+nn.large <- my.knn$nn.index
+
+w <- Seurat:::CalcSNNSparse(cell.names = colnames(filtCounts),
+                            k.param = k.param,
+                            nn.large = nn.large,
+                            nn.ranked = nn.ranked,
+                            prune.SNN = 1/15,
+                            print.output = FALSE)
+
+so@snn <- w
+
+## Run modularity clustering
+resolution <- 0.6
+so <- Seurat:::RunModularityClustering(object = so, SNN = w, 
+                                         modularity = 1, resolution = resolution,
+                                         algorithm = 1, n.start = 100, 
+                                         n.iter = 10, random.seed = 0,
+                                         print.output = FALSE, temp.file.location = NULL)
+so <- Seurat:::GroupSingletons(so, so@snn)
+name <- paste("res.", resolution, sep = "")
+so <- StashIdent(so, name)
+
+scone50_cl <- so@ident
+names(scone50_cl) <- paste0(names(so@ident), "-1")
+
+table(scone50_cl)
+table(scone50_cl, z_cl)
+
+#plot(data.use, pch=19, col=pal[scone50_cl])
+colnames(data.use) <- paste0("PCA", 1:NCOL(pca_sconeNorm))
+rownames(data.use) <- names(scone50_cl)
+write.table(data.frame(data.use, paste0("sconeNorm_PCA50cl", scone50_cl)), sep="\t", quote=FALSE,
+            file = "sconeNorm_pca50_SNN_RCOB_clusters.txt")
+#pairs(pca_sconeNorm[,1:5], cex = 0.3, col=pal[scone50_cl])
+
+tsne_scone <- Rtsne(pca_sconeNorm[,1:20], pca=FALSE, max_iter = 5000)
+plot(tsne_scone$Y, pch=19, cex = 0.4, col=colRKC[scone50_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0("t-SNE (sconeNorm PCA20), clustered by sconeNorm PCA50\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("bottomleft", legend=levels(scone50_cl), fill=colRKC, cex=0.5)
+plot(tsne_scone$Y, pch=19, cex = 0.4, col=colb[batch], xlab="TSNE 1", ylab="TSNE 2", main="t-SNE (sconeNorm PCA20), clustered by sconeNorm PCA50")
+legend("bottomleft", legend=levels(batch), fill=colb, cex=0.5)
+```
+
+#### Visually comparing the different clusterings from Seurat (zinb (z_cl), sconeNorm 50 PCs (scone50_cl)
+```{r clusterComparison, echo=FALSE}
+
+
+table(z_cl, scone50_cl)
+
+
+plot(tsne_zinb$Y, pch=19, col=colRKC[z_cl], cex=0.4, xlab="TSNE 1", ylab="TSNE 2", main="t-SNE (ZINB-WaVE_1Kvar), clustered by zinbwave1Kvar")
+
+plot(tsne_scone$Y, pch=19, col=colRKC[z_cl], cex=0.4, xlab="TSNE 1", ylab="TSNE 2", main="t-SNE (sconeNormPCA, 50PCs), clustered by zinbwave1Kvar")
+
+
+plot(tsne_scone$Y, pch=19, col=colRKC[scone50_cl], cex=0.4, xlab="TSNE 1", ylab="TSNE 2", main="t-SNE (sconeNormPCA, 50PCs), clustered by sconeNormPCA 50PCs")
+
+plot(tsne_zinb$Y, pch=19, col=colRKC[scone50_cl], cex=0.4, xlab="TSNE 1", ylab="TSNE 2", main="t-SNE (ZINB-WaVE_1Kvar), clustered by sconeNormPCA 50PCs")
+
+```
+
+```{r savingData, echo=FALSE}
+#save(filtCounts, tsne_data, tsne_data10, z_cl, z1k_cl, scone50_cl, sconen_pca10_cl, sumn_pca_cl, sumn_pca10_cl, tsne_zinb, data.pca, data.zinb, zinb, filtered, pca_sumNorm, pca_sumNorm1000, sumNorm, sumNorm1000, pca_sconeNorm, sconeNorm, vargenes, batch, file="regen1_toStartClusterInterpretation.Rda")
+save(pca, qcpca, file="dataForQCanalysis.Rda")
+
+batch <- colData(filtered)$batch
+expt <- colData(filtered)$expt
+
+# save(qcpca, poscon, negconeval, negconruv, filtCounts, z_cl, scone50_cl, filtered, pca_sconeNorm, sconeNorm, logSconeNorm, vargenes, zinb, tsne_scone, tsne_zinb, expt, batch,  tsne_data, W, cole, colb, logfiltCounts, file="RCOB_forClusterInterpretation.Rda")
+# rm(zinbcl1, so, se, scone_obj, scone_obj2, scone_obj3, scone_obj4, runQCmetrics, run_zinbwave, run_scone, ribo_idx, mito_idx, ribo_pct, mito_pct, mfilt, is_common, is_quality, cors, d, fig_barplot, fig_data, fig_pca, fig_tsne)
+```
+
+
+#####Make clusterExperiment object and use to compare clusterings, DE, etc.
+```{r preparationClusterExperiment}
+
+z_cl <- as.factor(as.numeric(z_cl))
+names(z_cl) <- colnames(sconeNorm)
+
+scone50_cl <- as.factor(as.numeric(scone50_cl))
+names(scone50_cl) <- colnames(sconeNorm)
+
+ce <- clusterExperiment(filtered, clusters=cbind(as.character(z_cl),
+                                          as.character(scone50_cl)), clusterTypes = c("zinb1Kvar", "scone50PC"),
+                       transformation = log1p)
+colnames(ce@clusterMatrix) <- c("zinb1Kvar", "scone50PC")
+assay(ce) <- sconeNorm
+
+ce <- makeDendrogram(ce, dimReduce="PCA", ndims=10)
+
+plotClusters(ce)
+plotDendrogram(ce)
+
+
+
+
+# ce <- clusterExperiment(filtered, clusters=cbind(as.character(z_cl),
+#                                           as.character(scone50_cl)), clusterTypes = c("zinb1Kvar", "scone50PC"),
+#                        transformation = log1p)
+# colnames(ce@clusterMatrix) <- c("zinb1Kvar", "scone50PC")
+# assay(ce) <- sconeNorm
+# 
+# ce <- makeDendrogram(ce, dimReduce="PCA", ndims=10)
+```
+
+#####Visualize gene expression for the candidate normalization/clusterings
+```{r visualizeGeneExpressionByCluster}
+
+###visualizing gene expression by cluster, using SCONE norm counts
+
+############-----------First, with SNN of Zinb1Kvar
+library(ggplot2)
+theme_set(theme_classic())
+
+markers <- c("Thy1", "Gad1", "Fxyd6", "Fxyd7", "Bcl2", "Pcp4", "Meis2", "Kcna2", "Gabra1", "Grin2b", "Dnajc2", "Vps8", "Calb2", "Fstl5", "Camk2n1", "Gls", "Reln", "Slc17a7", "Fst", "Coch", "tdTomato", "CreER")
+fig_data <- data.frame(t(log2(sconeNorm[markers,]+1)),
+                         TSNE1 = tsne_zinb$Y[,1], TSNE2 = tsne_zinb$Y[,2],
+                         Cluster = as.factor(z_cl), qc)
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = ribo_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Cluster), data = fig_data) + 
+ geom_point() + scale_colour_manual(values = colRKC)
+
+ggplot(aes(TSNE1, TSNE2, colour=Gad1), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Camk2n1), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Meis2), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Pcp4), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Thy1), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Reln), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Fxyd6), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Fxyd7), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Bcl2), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Kcna2), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Fstl5), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Fst), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Gls), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Slc17a7), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Coch), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=tdTomato), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=CreER), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+
+########################################
+########################################
+
+#####saving relevant files for Rebecca so she can plot tSNEs and heatmaps of relevant genes
+save(sconeNorm, ce, vargenes, batch, expt, resolution, tsne_scone, scone50_cl, z_cl, qc, file="forGeneExpression_tSNEs.Rda")
+
+############-----------with SNN of 50 PCs sconeNorm
+
+theme_set(theme_classic())
+fig_data <- data.frame(t(log2(sconeNorm[markers,]+1)),
+                         TSNE1 = tsne_scone$Y[,1], TSNE2 = tsne_scone$Y[,2],
+                         Cluster = scone50_cl, qc)
+
+ggplot(aes(TSNE1, TSNE2, colour=Cluster), data = fig_data) + 
+ geom_point() + scale_colour_manual(values = colRKC)
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = ribo_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Gad1), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Camk2n1), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Meis2), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Pcp4), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Thy1), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Reln), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Fxyd6), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Fxyd7), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Bcl2), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Kcna2), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Fstl5), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Fst), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Gls), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Slc17a7), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+ggplot(aes(TSNE1, TSNE2, colour=Coch), data = fig_data) + 
+ geom_point() + scale_colour_gradient(low="blue", high="yellow")
+
+
+
+
+##################################################
+
+```
+
+
+####Visualization of gene expression by heatmaps for each clustering
+```{r heatmapsDifferentClusterings}
+
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colRKC[z_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0("t-SNE (SNN_zinb1Kvar)\n resolution = ", resolution))
+legend("topleft", levels(z_cl), fill=colRKC, cex=.5)
+pdf(file="output/viz/tSNE_SNN_zinb1KvarCl.pdf")
+plot(tsne_zinb$Y, pch=19, cex = 0.4, col=colRKC[z_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0("t-SNE (SNN_zinb1Kvar)\n resolution = ", resolution))
+legend("topleft", levels(z_cl), fill=colRKC, cex=.5)
+dev.off()
+
+primaryClusterIndex(ce) <- 1
+ce <- makeDendrogram(ce, dimReduce="PCA", ndims=10)
+plotDendrogram(ce)
+
+plotHeatmap(log2(assay(ce)[markers,]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, clusters2=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, clusters2=colRKC, batch=colb), main=paste("SNN Zinb1KvarCl, select markers"))
+pdf(file="output/viz/heatmap_SNN_zinb1KvarCl_markers.pdf", height=8.5, width=11)
+plotHeatmap(log2(assay(ce)[markers,]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, clusters2=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, clusters2=colRKC, batch=colb), main=paste("SNN Zinb1KvarCl, select markers"))
+dev.off()
+
+#################
+plot(tsne_scone$Y, pch=19, cex = 0.4, col=colRKC[scone50_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0("t-SNE (SNN_scone50)\n resolution = ", resolution))
+legend("topleft", levels(scone50_cl), fill=colRKC, cex=.5)
+pdf(file="output/viz/tSNE_SNN_scone50PCCl.pdf")
+plot(tsne_scone$Y, pch=19, cex = 0.4, col=colRKC[scone50_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0("t-SNE (SNN_scone50)\n resolution = ", resolution))
+legend("topleft", levels(scone50_cl), fill=colRKC, cex=.5)
+dev.off()
+
+primaryClusterIndex(ce) <- 2
+ce <- makeDendrogram(ce, dimReduce="PCA", ndims=10)
+plotDendrogram(ce)
+
+plotHeatmap(log2(assay(ce)[markers,]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, clusters2=z_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, clusters2=colRKC, batch=colb), main=paste("SNN scone50PCsCl, select markers"))
+pdf(file="output/viz/heatmap_SNN_scone50PC_markers.pdf", height=8.5, width=11)
+plotHeatmap(log2(assay(ce)[markers,]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, clusters2=z_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, clusters2=colRKC, batch=colb), main=paste("SNN scone50PCsCl, select markers"))
+dev.off()
+
+```
+
+###DE genes for two selected clusterings using Limma Voom on sconeNormalized counts
+```{r DEbyCluster}
+
+#####-----Using sconeNorm counts for all DE
+#####-----First, DE by cluster for SNN clustering of ZINBWaVE 1Kvar W
+
+primaryClusterIndex(ce) <- 1
+ce <- makeDendrogram(ce, dimReduce="PCA", ndims=10)
+plotDendrogram(ce)
+
+top5_zinb <- getBestFeatures(sconeNorm, cluster=z_cl, isCount=TRUE, contrastType = "OneAgainstAll", number=5)
+top10_zinb <- getBestFeatures(sconeNorm, cluster=z_cl, isCount=TRUE, contrastType = "OneAgainstAll", number=10)
+top1K_zinb <- getBestFeatures(sconeNorm, cluster=z_cl, isCount=TRUE, contrastType = "OneAgainstAll", number=1000)
+write.table(top1K_zinb, sep="\t", quote=FALSE,
+            file = paste0(outDir, "DE/", exptStr, "_zinbSNN_sconeNorm_oneVallDE1K.txt"))
+
+top5pairs_zinb <- getBestFeatures(sconeNorm, cluster=z_cl, isCount=TRUE, contrastType = "Pairs", number=5)
+top25pairs_zinb <- getBestFeatures(sconeNorm, cluster=z_cl, isCount=TRUE, contrastType = "Pairs", number=25)
+write.table(top25pairs_zinb, sep="\t", quote=FALSE,
+            file = paste0(outDir, "DE/", exptStr, "_zinbSNN_sconeNorm_pairsDE25.txt"))
+top1Kpairs_zinb <- getBestFeatures(sconeNorm, cluster=z_cl, isCount=TRUE, contrastType = "Pairs", number=1000)
+write.table(top1Kpairs_zinb, sep="\t", quote=FALSE,
+            file = paste0(outDir, "DE/", exptStr, "_zinbSNN_sconeNorm_pairsDE1K.txt"))
+top500pairs_zinb <- getBestFeatures(sconeNorm, cluster=z_cl, isCount=TRUE, contrastType = "Pairs", number=500)
+write.table(top500pairs_zinb, sep="\t", quote=FALSE,
+            file = paste0(outDir, "DE/", exptStr, "_zinbSNN_sconeNorm_pairsDE500.txt"))
+
+plotHeatmap(log2(sconeNorm[unique(top5_zinb$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("oneVall5_SNNzinb1Kvar_sconeNorm"))
+pdf(file="output/viz/heatmap_oneVall5_SNNzinb1Kvar_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[unique(top5_zinb$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("oneVall5_SNNzinb1Kvar_sconeNorm")) 
+dev.off()
+
+
+
+######05/09/18
+z_cl <- as.factor(as.numeric(z_cl))
+names(z_cl) <- colnames(sconeNorm)
+zinbcl1 <- ClusterExperiment(sconeNorm, clusters=z_cl, transformation = log1p)
+zinbcl1 <- makeDendrogram(zinbcl1, reduceMethod = "var", nDims=1000)
+plotDendrogram(zinbcl1)
+
+
+pdf(file=paste0(outDir, "viz/", exptStr, "_heatmap_oneVall10_SNNzinb_sconeNorm.pdf"), height=8.5, width=11)
+clusterExperiment::plotHeatmap(log2(sconeNorm[unique(top10_zinb$IndexInOriginal),]+1), clusterSamplesData = zinbcl1@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste(exptStr, "_oneVall10_SNNzinb_sconeNorm")) 
+dev.off()
+
+
+top5pairs_zinb <- getBestFeatures(sconeNorm, cluster=z_cl, isCount=TRUE, contrastType = "Pairs", number=5)
+pdf(file=paste0(outDir, "viz/", exptStr, "_heatmap_pairWise5_SNNzinb_sconeNorm.pdf"), height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[unique(top5pairs_zinb$IndexInOriginal),]+1), clusterSamplesData = zinbcl1@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("pairWise5_SNNzinb1Kvar_sconeNorm"))
+dev.off()
+
+plotHeatmap(log2(sconeNorm[unique(top5pairs_zinb$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("pairWise5_SNNzinb1Kvar_sconeNorm"))
+pdf(file="output/viz/heatmap_pairWise5_SNNzinb1Kvar_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[unique(top5pairs_zinb$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=z_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("pairWise5_SNNzinb1Kvar_sconeNorm")) 
+dev.off()
+###############################################
+#######################
+
+#####-----Using sconeNorm counts for all DE
+#####-----DE by cluster for SNN clustering of sconeNorm 50 PCs
+
+primaryClusterIndex(ce) <- 2
+ce <- makeDendrogram(ce, dimReduce="PCA", ndims=10)
+plotDendrogram(ce)
+
+top5_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "OneAgainstAll", number=5)
+top1K_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "OneAgainstAll", number=1000)
+write.table(top1K_scone50, sep="\t", quote=FALSE,
+            file = "output/DE/RCOB_scone50PCSNN_sconeNorm_oneVallDE1K.txt")
+
+top5pairs_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "Pairs", number=5)
+top1Kpairs_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "Pairs", number=1000)
+write.table(top1Kpairs_scone50, sep="\t", quote=FALSE,
+            file = "output/DE/RCOB_scone50PCSNN_sconeNorm_pairsDE1K.txt")
+
+plotHeatmap(log2(sconeNorm[unique(top5_scone50$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("oneVall5_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_oneVall5_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[unique(top5_scone50$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("oneVall5_SNNscone50PC_sconeNorm")) 
+dev.off()
+
+plotHeatmap(log2(sconeNorm[unique(top5pairs_scone50$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("pairWise5_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_pairWise5_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[unique(top5pairs_scone50$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("pairWise5_SNNscone50PC_sconeNorm")) 
+dev.off()
+#####################
+#####################
+top50_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "OneAgainstAll", number=50)
+plotHeatmap(log2(sconeNorm[unique(top50_scone50$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("oneVall50_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_oneVall50_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[unique(top50_scone50$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("oneVall50_SNNscone50PC_sconeNorm")) 
+dev.off()
+top100_scone50 <- getBestFeatures(sconeNorm, cluster=scone50_cl, isCount=TRUE, contrastType = "OneAgainstAll", number=100)
+pdf(file="output/viz/heatmap_oneVall100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[unique(top100_scone50$IndexInOriginal),]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(filtered)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("oneVall100_SNNscone50PC_sconeNorm")) 
+dev.off()
+
+save(top1K_scone50, top1K_zinb, top1Kpairs_scone50, top1Kpairs_zinb, z_cl, scone50_cl, file="RCOB_DE_by_Cluster.Rda")
+save(ce, z_cl, scone50_cl, filtCounts, W, pca_sconeNorm, sconeNorm, file="RCOB_ce.Rda")
+
+```
+
+###Visualizations based on cluster specific DE
+####top 50 DE genes in putative tufted cell cluster
+####Using the SNN clustering of sconeNorm 50PCs
+#####tufted cell cluster is cluster 4
+```{r zoomingIntoDEbyCluster}
+
+primaryClusterIndex(ce) <- 2
+ce <- makeDendrogram(ce, dimReduce="PCA", ndims=10)
+plotDendrogram(ce)
+
+tuftedDE <- top1K_scone50[top1K_scone50$Contrast=="Cl04-(Cl01+Cl02+Cl03+Cl05+Cl06+Cl07+Cl08+Cl09+Cl10)/9",]
+tuftedDE <- tuftedDE[order(tuftedDE$logFC, decreasing=TRUE),]
+#########---------###########
+#############################----top 50 oneVall DE genes enriched in cluster 4 (tufted)
+plotHeatmap(log2(sconeNorm[tuftedDE$Feature[1:50],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster4(tufted)DEtop50_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster4(tufted)DEtop50_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[tuftedDE$Feature[1:50],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster4(tufted)DEtop50_SNNscone50PC_sconeNorm"))
+dev.off()
+#########---------###########
+#############################----top 100 oneVall DE genes enriched in cluster 4 (tufted)
+plotHeatmap(log2(sconeNorm[tuftedDE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster4(tufted)DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster4(tufted)DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[tuftedDE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster4(tufted)DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+
+############################
+###########---------specific cluster enriched genes
+Cl1DE <- top1K_scone50[top1K_scone50$Contrast=="Cl01-(Cl02+Cl03+Cl04+Cl05+Cl06+Cl07+Cl08+Cl09+Cl10)/9",]
+Cl1DE <- Cl1DE[order(Cl1DE$logFC, decreasing=TRUE),]
+Cl2DE <- top1K_scone50[top1K_scone50$Contrast=="Cl02-(Cl01+Cl03+Cl04+Cl05+Cl06+Cl07+Cl08+Cl09+Cl10)/9",]
+Cl2DE <- Cl2DE[order(Cl2DE$logFC, decreasing=TRUE),]
+Cl3DE <- top1K_scone50[top1K_scone50$Contrast=="Cl03-(Cl01+Cl02+Cl04+Cl05+Cl06+Cl07+Cl08+Cl09+Cl10)/9",]
+Cl3DE <- Cl3DE[order(Cl3DE$logFC, decreasing=TRUE),]
+Cl5DE <- top1K_scone50[top1K_scone50$Contrast=="Cl05-(Cl01+Cl02+Cl03+Cl04+Cl06+Cl07+Cl08+Cl09+Cl10)/9",]
+Cl5DE <- Cl5DE[order(Cl5DE$logFC, decreasing=TRUE),]
+Cl6DE <- top1K_scone50[top1K_scone50$Contrast=="Cl06-(Cl01+Cl02+Cl03+Cl04+Cl05+Cl07+Cl08+Cl09+Cl10)/9",]
+Cl6DE <- Cl6DE[order(Cl6DE$logFC, decreasing=TRUE),]
+Cl7DE <- top1K_scone50[top1K_scone50$Contrast=="Cl07-(Cl01+Cl02+Cl03+Cl04+Cl05+Cl06+Cl08+Cl09+Cl10)/9",]
+Cl7DE <- Cl7DE[order(Cl7DE$logFC, decreasing=TRUE),]
+Cl8DE <- top1K_scone50[top1K_scone50$Contrast=="Cl08-(Cl01+Cl02+Cl03+Cl04+Cl05+Cl06+Cl07+Cl09+Cl10)/9",]
+Cl8DE <- Cl8DE[order(Cl8DE$logFC, decreasing=TRUE),]
+Cl9DE <- top1K_scone50[top1K_scone50$Contrast=="Cl09-(Cl01+Cl02+Cl03+Cl04+Cl05+Cl06+Cl07+Cl08+Cl10)/9",]
+Cl9DE <- Cl9DE[order(Cl9DE$logFC, decreasing=TRUE),]
+Cl10DE <- top1K_scone50[top1K_scone50$Contrast=="Cl10-(Cl01+Cl02+Cl03+Cl04+Cl05+Cl06+Cl07+Cl08+Cl09)/9",]
+Cl10DE <- Cl10DE[order(Cl10DE$logFC, decreasing=TRUE),]
+
+plotHeatmap(log2(sconeNorm[Cl1DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster1_DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster1_DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[Cl1DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster1_DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+plotHeatmap(log2(sconeNorm[Cl2DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster2_DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster2_DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[Cl2DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster2_DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+plotHeatmap(log2(sconeNorm[Cl3DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster3_DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster3_DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[Cl3DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster3_DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+plotHeatmap(log2(sconeNorm[Cl5DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster5_DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster5_DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[Cl5DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster5_DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+plotHeatmap(log2(sconeNorm[Cl6DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster6_DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster6_DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[Cl6DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster6_DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+plotHeatmap(log2(sconeNorm[Cl7DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster7_DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster7_DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[Cl7DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster7_DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+plotHeatmap(log2(sconeNorm[Cl8DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster8_DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster8_DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[Cl8DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster8_DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+plotHeatmap(log2(sconeNorm[Cl9DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster9_DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster9_DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[Cl9DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster9_DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+plotHeatmap(log2(sconeNorm[Cl10DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster10_DEtop100_SNNscone50PC_sconeNorm"))
+pdf(file="output/viz/heatmap_cluster10_DEtop100_SNNscone50PC_sconeNorm.pdf", height=8.5, width=11)
+plotHeatmap(log2(sconeNorm[Cl10DE$Feature[1:100],]+1), clusterSamplesData = ce@dendro_samples, clusterFeatures=T, sampleData=data.frame(clusters=scone50_cl, batch=colData(ce)[,1]), clusterLegend=list(clusters=colRKC, batch=colb), main=paste("cluster10_DEtop100_SNNscone50PC_sconeNorm"))
+dev.off()
+
+```
+
+###Simple Conclusions: 1. cluster 4 appears to be tufted cells and there appear to be several tufted specific genes, some strongly expressed, some less so; 2. it appears that cluster 2 has some cell cycle genes?????? (Cdkn1c, Ccnd1); 3. There appear to be several different types of projection neurons based on clustering and DE. 
+
+###Analysis of RSEC clustering
+```{r RSEC_scone50PC}
+#####-----First, looking at scone 50PC based RSEC clustering; cmp for clusterManyPCA
+load("dataObjects/RCOB_sconeClusterMany.Rda")
+
+cmp <- combineMany(cl, proportion = 0.5, clusterFunction = "hierarchical01", minSize = 5, clusterLabel="combineMany,0.5")
+
+plotClusters(cmp)
+
+colData(cmp) <- colData(ce)
+plotClusters(cmp, sampleData = "batch", colPalette=c(bigPalette, rainbow(50)))
+cmp <- makeDendrogram(cmp, dimReduce="PCA", ndims=10)
+plotDendrogram(cmp)
+
+mergeClusters(cmp,mergeMethod="adjP",plotInfo="mergeMethod")
+cmp <- mergeClusters(cmp, mergeMethod = "adjP", cutoff = 0.04, plotInfo="mergeMethod")
+cmp <- makeDendrogram(cmp, dimReduce="PCA", ndims=10)
+plotDendrogram(cmp)
+final_hier_sc <- factor(clusterMatrixNamed(cmp)[,"mergeClusters"],
+                      levels=clusterLegend(cmp)[["mergeClusters"]][, "name"])
+names(final_hier_sc) <- colnames(cmp)
+write.table(final_hier_sc, file="output/clustering/RSEC_merged_adjP04_hier_clusters.txt", quote=FALSE, sep='\t',
+            col.names = FALSE)
+
+pdf(file="output/RSECsc50mergeHeatmap.pdf")
+plotHeatmap(cmp,main="Heatmap with clusterMany")
+dev.off()
+
+markers <- c("Thy1", "Gad1", "Gad2", "Fxyd6", "Fxyd7", "Bcl2", "Pcp4", "Meis2", "Kcna2", "Gabra1", "Grin2b", "Dnajc2", "Vps8", "Calb2", "Fstl5", "Camk2n1", "Gls", "Reln", "Slc17a7", "Fst", "Coch", "tdTomato", "CreER", "Kcnab3", "Ctgf", "Ly6g6e", "Pip5k1b", "Nxph4", "Cbln2", "Cadps2", "Id2", "Samsn1", "Mgst3", "Coro1a", "Shisa3", "Igfbp5", "Cbln4", "Ntng1", "Coro6", "Nrp2", "Gabra2", "Doc2b")
+pdf(file="output/RSECmergeAdjP05_sc50heatmapCMP_markers.pdf")
+plotHeatmap(log2(assay(cmp)[markers,]+1), clusterSamplesData = cmp@dendro_samples, clusterFeatures=T, sampleData=data.frame(RSECsc50PC_Cl=final_hier_sc, SNNsc50PC_Cl=scone50_cl, SNNzinbCl=z_cl, batch=colData(ce)[,1]), clusterLegend=list(RSECsc50PC_Cl=colRKC, SNNsc50PC_Cl=colRKC, SNNzinbCl=colRKC, batch=colb), labCol=NA,  unassignedColor = "white", main=paste("RSEC scone50PCs, select markers"))
+dev.off()
+
+hwh_rm <- which(final_hier_sc=="-1")
+pca <- prcomp(t(logSconeNorm[,-hwh_rm]))
+
+plot(pca$x, pch=19, col=colRKC[final_hier_sc[-hwh_rm]], main="RSEC_merged_scone50PCs, PCA, hierarchical01")
+legend("topleft", setdiff(levels(final_hier_sc),'-1'), fill=colRKC, cex = 0.5)
+
+vars <- rowVars(logSconeNorm)
+names(vars) <- rownames(logSconeNorm)
+vars <- sort(vars, decreasing = TRUE)
+
+pdf(file="output/viz/tSNE_RSEC_mergeAdjP05_scone50PC.pdf")
+tsne_1000 <- Rtsne(t(logSconeNorm[names(vars)[1:1000],-hwh_rm]),
+                   max_iter=5000, perplexity = 30)
+plot(tsne_1000$Y, pch=19, cex = 0.4, col=colRKC[final_hier_sc[-hwh_rm]], main="t-SNE, RSEC scone50PC, 1000 most variable genes, hier01")
+legend("topright", setdiff(levels(final_hier_sc),'-1'), fill=colRKC, cex = 0.5)
+
+tsne_500 <- Rtsne(t(logSconeNorm[names(vars)[1:500],-hwh_rm]),
+                   max_iter=5000, perplexity = 30)
+plot(tsne_500$Y, pch=19, cex = 0.4, col=colRKC[final_hier_sc[-hwh_rm]], main="t-SNE, RSEC scone50PC, 500 most variable genes, hier01")
+legend("topright", setdiff(levels(final_hier_sc),'-1'), fill=colRKC, cex = 0.5)
+
+tsne_250 <- Rtsne(t(logSconeNorm[names(vars)[1:250],-hwh_rm]),
+                   max_iter=5000, perplexity = 30)
+plot(tsne_250$Y, pch=19, cex = 0.4, col=colRKC[final_hier_sc[-hwh_rm]], main="t-SNE, RSEC scone50PC, 250 most variable genes, hier01")
+legend("topright", setdiff(levels(final_hier_sc),'-1'), fill=colRKC, cex = 0.5)
+
+tsne_rsecScone50PC50 <- Rtsne(pca$x[,1:50], pca=FALSE, max_iter = 5000)
+plot(tsne_rsecScone50PC50$Y, pch=19, cex = 0.4, col=colRKC[final_hier_sc[-hwh_rm]], main="t-SNE, RSEC scone50PC, 50 PCs tSNE, hier01")
+legend("topright", setdiff(levels(final_hier_sc),'-1'), fill=colRKC, cex = 0.5)
+
+# tsne_rsecScone50PC20 <- Rtsne(pca$x[,1:20], pca=FALSE, max_iter = 5000)
+# plot(tsne_rsecScone50PC20$Y, pch=19, cex = 0.4, col=pal[final_hier_sc[-hwh_rm]], main="t-SNE, RSEC scone50PC, 20 PCs tSNE, hier01")
+dev.off()
+
+```
+
+###Analysis of RSEC clustering
+```{r RSEC_zinb}
+#####-----First, looking at scone 50PC based RSEC clustering; cmp for clusterManyPCA
+load("dataObjects/RCOB_zinbClusterMany.Rda")
+
+cmpz <- combineMany(cl, proportion = 0.5, clusterFunction = "hierarchical01", minSize = 5, clusterLabel="combineMany,0.5")
+
+plotClusters(cmpz)
+
+colData(cmpz) <- colData(ce)
+plotClusters(cmpz, sampleData = "batch", colPalette=c(bigPalette, rainbow(50)))
+cmpz <- makeDendrogram(cmpz, dimReduce="PCA", ndims=10)
+plotDendrogram(cmpz)
+
+mergeClusters(cmpz,mergeMethod="adjP",plotInfo="mergeMethod")
+cmpz <- mergeClusters(cmpz, mergeMethod = "adjP", cutoff = 0.06, plotInfo="mergeMethod")
+cmpz <- makeDendrogram(cmpz, dimReduce="PCA", ndims=10)
+plotDendrogram(cmpz)
+final_hier_sc <- factor(clusterMatrixNamed(cmpz)[,"mergeClusters"],
+                      levels=clusterLegend(cmpz)[["mergeClusters"]][, "name"])
+names(final_hier_zb) <- colnames(cmpz)
+write.table(final_hier_zb, file="output/RSEC_merged_hier_clusters.txt", quote=FALSE, sep='\t',
+            col.names = FALSE)
+
+pdf(file="output/RSECzinbMergeHeatmap.pdf")
+plotHeatmap(cmpz,main="Heatmap with clusterMany")
+dev.off()
+
+markers <- c("Thy1", "Gad1", "Gad2", "Fxyd6", "Fxyd7", "Bcl2", "Pcp4", "Meis2", "Kcna2", "Gabra1", "Grin2b", "Dnajc2", "Vps8", "Calb2", "Fstl5", "Camk2n1", "Gls", "Reln", "Slc17a7", "Fst", "Coch", "tdTomato", "CreER", "Kcnab3", "Ctgf", "Ly6g6e", "Pip5k1b", "Nxph4", "Cbln2", "Cadps2", "Id2", "Samsn1", "Mgst3", "Coro1a", "Shisa3", "Igfbp5", "Cbln4", "Ntng1", "Coro6", "Nrp2", "Gabra2", "Doc2b")
+pdf(file="output/RSECzbheatmapCMPZ_markers.pdf")
+plotHeatmap(log2(assay(cmpz)[markers,]+1), clusterSamplesData = cmp@dendro_samples, clusterFeatures=T, sampleData=data.frame(RSECzinb_Cl=final_hier_sc, SNNzinb_Cl=scone50_cl, SNNzinbCl=z_cl, batch=colData(ce)[,1]), clusterLegend=list(RSECzb_Cl=colRKC, SNNsc50PC_Cl=colRKC, SNNzinbCl=colRKC, batch=colb), main=paste("RSEC scone50PCs, select markers"))
+dev.off()
+
+zwh_rm <- which(final_hier_sc=="-1")
+pca <- prcomp(t(logSconeNorm[,-zwh_rm]))
+
+plot(W, pch=19, col=colRKC[final_hier_sc[-zwh_rm]], main="RSEC_merged_scone50PCs, PCA, hierarchical01")
+legend("topleft", setdiff(levels(final_hier_zb),'-1'), fill=colRKC, cex = 0.5)
+
+vars <- rowVars(logSconeNorm)
+names(vars) <- rownames(logSconeNorm)
+vars <- sort(vars, decreasing = TRUE)
+
+tsne_1000zb <- Rtsne(t(logSconeNorm[names(vars)[1:1000],-zwh_rm]),
+                   max_iter=5000, perplexity = 30)
+plot(tsne_1000zb$Y, pch=19, cex = 0.4, col=colRKC[final_hier_zb[-zwh_rm]], main="t-SNE, RSEC scone50PC, 1000 most variable genes, hier01")
+
+tsne_500zb <- Rtsne(t(logSconeNorm[names(vars)[1:500],-zwh_rm]),
+                   max_iter=5000, perplexity = 30)
+plot(tsne_500zb$Y, pch=19, cex = 0.4, col=colRKC[final_hier_zb[-zwh_rm]], main="t-SNE, RSEC scone50PC, 500 most variable genes, hier01")
+
+tsne_250zb <- Rtsne(t(logSconeNorm[names(vars)[1:250],-zwh_rm]),
+                   max_iter=5000, perplexity = 30)
+plot(tsne_250zb$Y, pch=19, cex = 0.4, col=colRKC[final_hier_zb[-zwh_rm]], main="t-SNE, RSEC scone50PC, 250 most variable genes, hier01")
+
+tsne_rsecZinb_W10 <- Rtsne(W[,1:10], pca=FALSE, max_iter = 5000)
+plot(tsne_rsecScone50PC50$Y, pch=19, cex = 0.4, col=colRKC[final_hier_zb[-zwh_rm]], main="t-SNE, RSEC zinb,  W10_tSNE, hier01")
+
+
+```
+
+
