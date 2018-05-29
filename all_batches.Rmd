@@ -1,0 +1,1035 @@
+---
+title: "Normalization and Clustering of GFP+/tdT+ and tdT+ only cells (all batches)"
+author: "Davide Risso"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  html_document:
+    fig_height: 7
+    fig_width: 7
+    toc: yes
+    code_folding: hide
+    toc_float: yes
+editor_options:
+  chunk_output_type: console
+---
+
+```{r options, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE, error=FALSE, message=FALSE, warning=FALSE)
+# NMF::nmf.options(grid.patch=TRUE) #get rid of blank page in heatmap pdf
+
+library(SummarizedExperiment)
+library(TENxGenomics)
+library(scater)
+library(scone)
+library(clusterExperiment)
+library(ggplot2)
+library(magrittr)
+library(cowplot)
+library(Rtsne)
+library(zinbwave)
+```
+
+# Conclusions so far
+
+Based on the results of the cluster analysis on all the batches, we have 9 subpopulations of Sst interneurons that we can match to the Allen ALM+V1 Sst clusters.
+
+In particular
+
+| New Cluster | Old cluster | Allen  | Cells | GFP+  |
+|---|---|---|---|---|
+| S0 | m8 | Sst Etv1_4 | 286 | 32 |
+| S1 | m1 + m2 + m11 | Sst Myh8 | 265 | 3  |
+| S2 | m3 + m9 | Sst Etv1_5 | 238 | 7  |
+| S3 | m5 | Sst Tac2_2 | 195 | 9  |
+| S4 | m4 | Sst Hpse_3 | 178 | 5  |
+| S5 | m1 + m2 | Sst Myh8 | 176 | 3  |
+| S6 | m7 | Sst Etv1_1 | 174 | 5  |
+| S7 | m5 | Sst Crhr2 | 150 | 22  |
+| S8 | m4 | Sst Hpse_4  | 150 | 96  |
+| S9 | m9 | Sst Nts_2 | 129 | 2 |
+| S10 | new | Sst Hpse_1 | 83 | 4  |
+| S11 | m6 | Sst Chodl | 74 | 0  |
+| S12 | m10 | Contaminant (no Sst) | 69 | 6  |
+| S13 | new | Contaminant (no Sst) | 69 | 0  |
+| S14 | new | Contaminant (no Sst) | 27 | 0  |
+
+We have a good correspondence between our clusters and the Allen clusters.
+Note that our algorithm suggests to merge S1 and S5 (Sst Myh8) and S4 and S8 (Sst Hpse).
+
+# Introduction
+
+Here, we use `scone` and `clusterExperiment` to normalize and find subtypes of cells in the tdTomato+ and GFP+/tdTomato+ runs of 10X genomics combined.
+
+The goal is to see whether the GFP+/tdTomato+ cells cluster all in one of the groups defined by the tdTomato+ only cells.
+
+We used the 10x genomics preprocessing pipeline, and we'll start from a matrix of
+UMI counts that need to be normalized and clustered. We can include only the last two runs or all the three runs. We'll start with just the last two.
+
+To read in the data, we use the [TENxGenomics package](https://github.com/mtmorgan/TENxGenomics) by Martin Morgan. This is not necessary, a simple function that reads in a HDF5 file would be sufficient, but this package provides a nice interface to the `SummarizedExperiment` class.
+
+```{r readin}
+tdt <- matrixSummarizedExperiment("tdt/outs/filtered_gene_bc_matrices_h5.h5")
+gfptdt <- matrixSummarizedExperiment("gfptdt/outs/filtered_gene_bc_matrices_h5.h5")
+tdt1 <- matrixSummarizedExperiment("../processed_170714/naka1/outs/filtered_gene_bc_matrices_h5.h5")
+tdt2 <- matrixSummarizedExperiment("../processed_170714/naka2/outs/filtered_gene_bc_matrices_h5.h5")
+
+se <- cbind(tdt1, tdt2, tdt, gfptdt)
+se
+colData(se)$Batch <- as.factor(c(rep("TdT+1", NCOL(tdt1)),
+                                 rep("TdT+2", NCOL(tdt2)),
+                                 rep("TdT+3", NCOL(tdt)),
+                                 rep("TdT+GFP+", NCOL(gfptdt))))
+colData(se)
+```
+
+We processed two batches for a total of `r NCOL(se)` cells.
+
+# Exploratory Data Analysis
+
+Looking at library sizes and detected genes.
+
+```{r eda}
+hist(colSums(assay(se)), breaks=30, 
+     xlab='Number of UMI', main="Number of UMI per sample")
+hist(colSums(assay(se)>0)/nrow(se), breaks=30, 
+     xlab="Proportion of detected genes", main="Proportion of detected genes")
+
+hist(colSums(assay(se)>0), breaks=30, 
+     xlab="Number of detected genes", main="Number of detected genes")
+
+hist(colMeans(assay(se)==0), breaks=30, 
+     xlab="Proportion of zeros", main="Proportion of zeros")
+
+boxplot(colSums(assay(se))~colData(se)$Batch, main="Number of UMI per sample")
+boxplot(colSums(assay(se)>0)/nrow(se)~colData(se)$Batch, main="Proportion of detected genes")
+boxplot(colMeans(assay(se)==0)~colData(se)$Batch, main="Proportion of zeros")
+
+simple <- assay(se)[rowSums(assay(se))>10,]
+simple <- SUM_FN(simple)
+
+library(rARPACK)
+fastpca <- function(expr, scale=FALSE, k=50) {
+  svd_raw <- svds(scale(t(expr), center=TRUE, scale=scale), k=k, nu=k, nv=0)
+  pc_raw <- svd_raw$u %*% diag(svd_raw$d[1:k])
+  return(pc_raw)
+}
+pca <- fastpca(log1p(simple), scale = TRUE)
+```
+
+We can use `scater` to explore a set of QC metrics.
+
+```{r scater}
+sce <- as(se, "SingleCellExperiment")
+assayNames(sce) <- "counts"
+sce <- calculateQCMetrics(sce)
+
+ribo_idx <- grep("^Rpl", rowData(se)[,2])
+mito_idx <- grep("^Mt", rowData(se)[,2])
+ribo_pct <- colSums(assay(se)[ribo_idx,])/colSums(assay(se)) * 100
+mito_pct <- colSums(assay(se)[mito_idx,])/colSums(assay(se)) * 100
+tdtomato <- assay(se)["tdTomato",]
+gfp_exp <- assay(se)["GFP",]
+
+Xist <- assay(se)["ENSMUSG00000086503",]
+
+qc <- as.matrix(data.frame(colData(sce)[,c(7, 9:13)], mito_pct = mito_pct, ribo_pct = ribo_pct,
+                           Xist = Xist, tdtomato = tdtomato, gfp = gfp_exp))
+qcpca <- prcomp(qc, scale. = TRUE)
+plot(qcpca$x, col=bigPalette[1], pch=19, main="QC PCA")
+
+cors <- lapply(1:3, function(i) abs(cor(pca[,i], qc, method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(colnames(qc), 3), levels=colnames(qc)),
+                   Dimension=as.factor(rep(paste0("PC", 1:3), each=ncol(qc))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1) + 
+  ggtitle("Correlation between QC and expression PCA")
+
+fig_data <- data.frame(PC1 = pca[,1], PC2 = pca[,2], qc, colData(se),
+                   QPC1=qcpca$x[,1], QPC2=qcpca$x[,2])
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_pca
+
+fig_qpca <- ggplot(fig_data, aes(x = QPC1, y = QPC2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_qpca
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = ribo_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_pca
+
+fig_qpca <- ggplot(fig_data, aes(x = QPC1, y = QPC2, color = ribo_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_qpca
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = tdtomato)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_pca
+
+fig_qpca <- ggplot(fig_data, aes(x = QPC1, y = QPC2, color = tdtomato)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_qpca
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = Batch)) +
+  geom_point() + scale_color_brewer(palette = "Set1")
+fig_pca
+
+heatmap(cor(qc, method = "spearman"))
+```
+
+We also explore the expression of genes in the Stress, Apoptosis, and Response to Inflammation categories.
+
+```{r msigdb, eval=FALSE}
+geneSetsFiles = c("mouse_c2_v5p1.rdata", "mouse_H_v5p1.rdata")
+for(fname in geneSetsFiles) {
+  if(!file.exists(file.path("./MSigDB", fname))) {
+    system(paste0("wget -P ./MSigDB/ http://bioinf.wehi.edu.au/software/MSigDB/", fname))
+  }
+  
+  load(file.path("./MSigDB", fname))
+}
+
+#merge hallmark and atlas pathways and remove uncertain gene sets
+selectedGeneSets = c(Mm.H, Mm.c2[grepl("^(KEGG|BIOCARTA|PID|REACTOME)_", names(Mm.c2), perl=TRUE)])
+
+library(biomaRt)
+mart <- useMart("ensembl")
+mart <- useDataset("mmusculus_gene_ensembl", mart = mart)
+bm <- getBM(attributes=c('ensembl_gene_id', 'mgi_symbol', 'entrezgene'), 
+            filters = "ensembl_gene_id",
+            values = rownames(simple),
+            mart = mart)
+
+idx <- unique(unlist(selectedGeneSets[grep("stress", names(selectedGeneSets), ignore.case = TRUE)]))
+stress <- simple[bm[bm[,3] %in% idx, 1],]
+
+idx <- unique(unlist(selectedGeneSets[grep("apoptosis", names(selectedGeneSets), ignore.case = TRUE)]))
+apoptosis <- simple[bm[bm[,3] %in% idx, 1],]
+
+idx <- unique(unlist(selectedGeneSets[grep("inflammatory_response", names(selectedGeneSets), ignore.case = TRUE)]))
+inflammatory <- simple[bm[bm[,3] %in% idx, 1],]
+
+idx <- unique(unlist(selectedGeneSets[grep("estrogen", names(selectedGeneSets), ignore.case = TRUE)]))
+estrogen <- simple[bm[bm[,3] %in% idx, 1],]
+
+idx <- unique(unlist(selectedGeneSets[grep("androgen", names(selectedGeneSets), ignore.case = TRUE)]))
+androgen <- simple[bm[bm[,3] %in% idx, 1],]
+
+idx <- unique(unlist(selectedGeneSets[grep("hypoxia", names(selectedGeneSets), ignore.case = TRUE)]))
+hypoxia <- simple[bm[bm[,3] %in% idx, 1],]
+
+fig_data <- data.frame(PC1 = pca[,1], PC2 = pca[,2],
+                       QPC1 = qcpca$x[,1], QPC2 = qcpca$x[,2],
+                       Stress=colMeans(stress),
+                       Apoptosis=colMeans(apoptosis),
+                       Inflammatory=colMeans(inflammatory),
+                       Estrogen=colMeans(estrogen),
+                       Androgen=colMeans(androgen),
+                       Hypoxia=colMeans(hypoxia))
+
+ggplot(fig_data, aes(x = PC1, y = PC2, color = Stress)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = PC1, y = PC2, color = Apoptosis)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = PC1, y = PC2, color = Inflammatory)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = PC1, y = PC2, color = Estrogen)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = PC1, y = PC2, color = Androgen)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = PC1, y = PC2, color = Hypoxia)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = QPC1, y = QPC2, color = Stress)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = QPC1, y = QPC2, color = Apoptosis)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = QPC1, y = QPC2, color = Inflammatory)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = QPC1, y = QPC2, color = Estrogen)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = QPC1, y = QPC2, color = Androgen)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = QPC1, y = QPC2, color = Hypoxia)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+idx <- c("Stress", "Apoptosis", "Inflammatory", "Estrogen", "Androgen",  "Hypoxia")
+cors <- lapply(1:10, function(i) abs(cor(pca[,i], 
+                                         fig_data[,idx], 
+                                         method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(idx, 10), levels=idx),
+                   Dimension=as.factor(rep(paste0("PC", 1:10), each=length(idx))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1)
+```
+
+# Filtering
+
+```{r filtering}
+colData(se) <- colData(sce)
+
+# select expressed genes only
+se <- se[rowSums(assay(se))>0,]
+
+# select common genes
+num_reads <- quantile(assay(se)[assay(se) > 0])[4]
+num_cells = 0.25*ncol(se)
+is_common = rowSums(assay(se) >= num_reads ) >= num_cells
+table(is_common)
+
+# select housekeeping genes
+data("housekeeping")
+hk <- stringr::str_to_title(housekeeping[,1])
+hk_idx <- which(rowData(se)$Symbol %in% hk)
+
+mfilt <- metric_sample_filter(assay(se),
+                             nreads = colData(se)$total_counts,
+                             gene_filter = is_common,
+                             pos_controls = hk_idx,
+                             hard_nreads = 2000,
+                             zcut = 3, mixture = FALSE,
+                             plot = TRUE)
+
+plot(pca, pch=19, col=bigPalette[as.numeric(mfilt$filtered_breadth)+1],
+     main = "PCA Filtered on transcriptome 'breadth'")
+plot(pca, pch=19, col=bigPalette[as.numeric(mfilt$filtered_fnr)+1],
+     main = "PCA Filtered on FNR AUC")
+
+plot(qcpca$x, pch=19, col=bigPalette[as.numeric(mfilt$filtered_breadth)+1],
+     main = "QPCA Filtered on transcriptome 'breadth'")
+plot(qcpca$x, pch=19, col=bigPalette[as.numeric(mfilt$filtered_fnr)+1],
+     main = "QPCA Filtered on FNR AUC")
+
+table(mfilt$filtered_nreads, mfilt$filtered_fnr)
+filter_cell <- !apply(simplify2array(mfilt[!is.na(mfilt)]),1,any)
+
+plot(qcpca$x, pch=19, col=bigPalette[as.numeric(filter_cell)+1],
+     main = "PCA Filtered on FNR AUC")
+
+table(filter_cell, se$Batch)
+
+# Final Gene Filtering: Highly expressed in at least 5 cells
+num_reads <- quantile(assay(se)[assay(se) > 0])[4]
+num_cells = 5
+is_quality = rowSums(assay(se) >= num_reads ) >= num_cells
+table(is_quality)
+filtered <- se[is_quality, filter_cell]
+dim(filtered)
+
+qc <- qc[colnames(filtered),]
+```
+
+```{r save_filtered}
+save(filtered, file="combined_filtered_all_batches.rda")
+```
+
+# Check for batch effects
+
+```{r batch}
+# check for batch effects
+pca <- fastpca(log1p(SUM_FN(assay(filtered))), scale = TRUE, k=50)
+tsne_data <- Rtsne(pca, pca=FALSE, max_iter = 5000)
+qcpca <- prcomp(qc, scale. = TRUE)
+
+plot(pca, pch=19, col=bigPalette[colData(filtered)$Batch],
+     main = "PCA Color-coded by batch")
+plot(qcpca$x, pch=19, col=bigPalette[colData(filtered)$Batch],
+     main = "QPCA Color-coded by batch")
+
+boxplot(pca[,1] ~ colData(filtered)$Batch)
+boxplot(pca[,2] ~ colData(filtered)$Batch)
+
+plot(tsne_data$Y, pch=19, col=bigPalette[colData(filtered)$Batch])
+legend("bottomleft", levels(filtered$Batch), fill=bigPalette)
+
+idx <- colnames(filtered)
+fig_data <- data.frame(PC1=pca[,1], PC2=pca[,2], colData(filtered),
+                       TSNE1=tsne_data$Y[,1], TSNE2=tsne_data$Y[,2])
+
+ggplot(fig_data, aes(x = PC1, y = PC2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+```
+
+# Normalization
+
+## SCONE
+
+```{r scone}
+## select positive controls (from Allen paper)
+gabaergic <- c("Crispld2", "Cxcl14", "Tpm2", "Itih5", "Cox6a2",
+               "Cxcl14", "Car4", "Tac2", "Reln", "Npy2r", "Tnfaip8l3", "Cadps2", "2310042E22Rik", "Egln3", "Tpd52l1", "Megf10", "Aebp1", "Slc18a3", "Pvrl4", "Nrp1", "Sema5b", "Pcdh15", "Phlda1", "Bcar3", "Mab21l1", "Pbx3", "Nrp1", "Crh", "Lamp5", "Tnfaip8l3", "Atp6ap1l", "Gabrd", "Npy", "Pde11a", "Has2", "Krt12", "2310042E22Rik", "Ndst4", "Tnnt1", "Reln", "Mpped1", "Pde1a", "Pcdh18", "4921511H03Rik", "Rgs12", "Cd34", "Egln3", "Thsd7b", "Reln", "Krt12", "2310042E22Rik", "Ndst4", "Lhx6", "Cdca7", "Myo5b", "Pdlim3", "Efcab6", "Tnnt1", "Cryab", "Nfib", "Kit", "Lamp5", "Cd34", "Sln", "Npy", "Col14a1", "Rasl11a", "Frmd7", "Edn3", "Tnfaip8l3", "Frem1", "Scml4", "St6galnac5", "Pbx3", "Fam107a", "Krt73", "Cyb5r2", "Kcns3", "Rasl11a", "Timp3", "Adamts18", "Ano3", "Rasl11a", "Tnni3k", "Bdnf", "Gabrg1", "Spp1", "Nr4a2", "Hspb3", "Nts", "Myh8", "Chrna2", "Glra3", "Kit", "Ppapdc1a", "Nr2f2", "Gfra2", "Myh1", "Myh4", "Myh13", "Grm3", "Il1rapl2", "Tnni3k", "Cartpt", "Chrna2", "Tmem90a", "Nr2f2", "Myh4", "Myh13", "Myh1", "C1qtnf7", "4930503E14Rik", "Gm5622", "Gm8267", "Efemp1", "Grm3", "Cartpt", "Crh", "Pla2g4a", "Sgpp2", "Trpv6", "Klhl14", "Chrnb3", "Grm3", "Ano3", "Fam5c", "Htr2a", "Irs4", "Tacr1", "Nos1", "Bace2", "Ccdc109b", "Dnase1l3", "Gpr126", "Gpr151", "Gstm6", "Hcrtr1", "Htr7", "Krt18", "Insl6", "Ndst4", "Sit1", "9430021M05Rik", "Gabrg1", "Cdca7", "Ndst4", "Gpr88", "Man1a", "Th", "Calca", "Nell1", "Fxyd6", "Tac1", "Tacr3", "Ednrb", "Thsd7a", "Fosb", "Il1rapl2", "Tll1", "Col25a1", "Calb1", "Kit", "Etv1", "Bdnf", "Aloxe3", "Nt5e", "Cntnap5b", "Thsd7a", "Snca", "Cacna2d3", "Kit", "Pcdh8", "Olfm3", "Pdlim3", "Nfib", "Krt12", "Cdca7", "Thsd7a", "Gm1051", "Caln1", "Calb1", "Il1rapl2", "Col25a1", "Tac1", "Tpbg", "Gpx3", "Akr1c18", "Ntf3", "Lrrc61", "Tac1", "Tusc5", "Fign", "Il1rapl2", "Acsbg1", "Tac1", "Il1rapl2")
+
+glutamatergic <- c("Rspo1", "Inhba", "Sparcl1", "Pde1a", "Lmo3", "Rorb", "Whrn", "Rspo1", "Endou", "Tmem215", "Rorb", "Whrn", "Pde1a", "Endou", "Plb1", "Aldh1l1", "Etv1", "Deptor", "Rorb", "Whrn", "Cpne7", "Scnn1a", "Endou", "Rspo1", "Whrn", "Stard8", "Inhba", "Wfs1", "Otof", "Enpp2", "Palmd", "Rgs8", "Dgkb", "Adamts2", "Fst", "Matn2", "Cdh13", "Dgkb", "Otof", "Pacsin2", "Myl4", "Deptor", "Tmem91", "Whrn", "Il1rapl2", "Hsd11b1", "Nnat", "Syt17", "Myl4", "D430036J16Rik", "Deptor", "Arhgap25", "Cpne2", "Il1rapl2", "Foxo1", "Deptor", "Myl4", "Aldoc", "Arhgap25", "Il1rapl2", "Hhatl", "Itga7", "Myl4", "Arhgap25", "Man1a", "Penk", "Anxa11", "Cd7", "Cited1", "Lipg", "Nnat", "Ptchd2", "Sorcs3", "Inhba", "C1ql3", "Pter", "Acvr1c", "Fst", "Prss22", "Traip", "Ptprk", "Il1rapl2", "Ctgf", "Tnmd", "Nxph4", "Col24a1", "Trh", "Fam46a", "Ngf", "Moxd1", "Ndrg1", "Tmem40", "Cplx3", "Cidea", "Inpp4b", "Lman1l", "Igsf3", "Ctgf", "Nxph4", "Cidea", "Ly6g6e", "Sla", "Cplx3", "Clic5", "Lman1l", "Gpr126", "Arhgap25", "Foxp2", "Ly6d", "Rprm", "Ifitm2", "Ctxn3", "Crym", "Foxp2", "Gabra5", "Rprm", "Plekhb1", "Slc6a11", "Crym", "Chrnb3", "Scml2", "Ngb", "Klk8", "Plac9", "Ddit4l", "Fam84b", "Qrfpr", "Samd3", "Stac", "Ddit4l", "2310042E22Rik", "Kcns3", "Mc4r", "Coro6", "Sema3c", "Kctd8", "Crym", "Fam84b", "Ptgfr", "Depdc7", "Qrfpr", "Col6a1", "Syt17", "2310042E22Rik", "Crym", "Man1a", "Fam84b", "Ctxn3")
+
+nonneruonal <- c("F3", "Rorb", "Acsbg1", "Slc39a12", "Ntsr2", "Plcd4", "Gja1", "Gjb6", "Cbs", "Chrdl1", "Prodh", "Mlc1", "Acsl6", "Slc4a4", "Gabrg1", "Cxcl14", "Slco1c1", "Vcam1", "Ednrb", "Scrg1", "Bcan", "Cspg4", "Pcdh15", "Gria3", "Cacng4", "E130309F12Rik", "Vcan", "Ednrb", "Scrg1", "Bcan", "Gpr17", "Brca1", "Rnf122", "Mbp", "Zcchc12", "Enpp6", "Kif19a", "Enpp6", "Dct", "Tmeff2", "Gpr17", "1700040N02Rik", "1810041L15Rik", "St18", "Vcan", "Bcan", "9530059O14Rik", "Cldn11", "1700047M11Rik", "Mbp", "Mog", "Aspa", "Mobp", "Gpr37", "Ppp1r14a", "Gjb1", "Tmeff2", "St18", "Cldn11", "1700047M11Rik", "Kctd13", "Cntn2", "Eml1", " A530088E08Rik", "Cx3cr1", "C1qb", "Cd53", "Csf1r", "Itgam", "Abi3", "C1qa", "Aif1", "Trem2", "P2ry13", "Tmem119", "C1qc", "Cd14", "Fcgr3", "Gpr34", "Inpp5d", "Nckap1l", "Mpeg1", "Siglech", "Susd3", "Hk2", "Ly86", "Sparc", "Fli1", "Tbc1d4", "AI467606", "Exosc7", "Eltd1", "Fas", "Hmgcs2", "Nostrin", "Paqr5", "Slc16a4", "Id1", "Ptprb", "Cd93", "Sparc", "Fli1", "Ly6a", "Ly6c1", "Ly6c2", "Flt1", "Pglyrp1", "Slco1a4", "Ifitm3", "Abcb1a", "Ahnak", "Bgn", "Nupr1", "Casq2", "Mylk", "Gprc5c", "Slc38a11", "Slc6a20a", "Pcolce", "Vtn", "Cnn2", "Nid1", "Gpr30", "Higd1b", "Ifitm1", "P2ry14", "Serping1", "Sparc", "Fli1", "Cald1", " Abcb1a", "Flt1", "Ly6a", "Ly6c1", "Ly6c2", "Pglyrp1", "Slco1a4", "Ahnak")
+
+poscon <- intersect(c(gabaergic, glutamatergic, nonneruonal), rowData(filtered)$Symbol)
+rowData(filtered)$poscon <- (rowData(filtered)$Symbol %in% poscon)
+
+## select negative controls (housekeeping)
+hk <- intersect(hk, rowData(filtered)$Symbol)
+set.seed(42)
+negconeval <- sample(hk, length(poscon))
+negconruv <- setdiff(hk, negconeval)
+rowData(filtered)$negcon_eval <- (rowData(filtered)$Symbol %in% negconeval)
+rowData(filtered)$negcon_ruv <- (rowData(filtered)$Symbol %in% negconruv)
+
+names <- colnames(qc)[1:8]
+run_scone <- FALSE
+if(run_scone) {
+  library(BiocParallel)
+  library(doParallel)
+  registerDoParallel(7)
+  register(DoparParam())
+  
+  scone_obj <- SconeExperiment(filtered,
+                               which_qc = which(colnames(colData(filtered)) %in% names),
+                               which_negconruv = which(colnames(rowData(filtered)) == "negcon_ruv"),
+                               which_negconeval = which(colnames(rowData(filtered)) == "negcon_eval"),
+                               which_poscon = which(colnames(rowData(filtered)) == "poscon"),
+                               which_batch = which(colnames(colData(filtered)) == "Batch"))
+  
+  scone_obj <- scone(scone_obj,
+                     scaling = list(none=identity, sum = SUM_FN, tmm = TMM_FN,
+                                    fq = FQT_FN, deseq = DESEQ_FN),
+                     zero = "postadjust",
+                     adjust_batch = "no")
+  save(scone_obj, file="combined_scone_res_all_batches.rda")
+} else {
+  load("combined_scone_res_all_batches.rda")
+}
+head(get_scores(scone_obj))
+
+norm <- get_normalized(scone_obj, "none,fq,ruv_k=5,no_bio,no_batch")
+lognorm <- log1p(norm)
+## biplot_interactive(scone_obj)
+```
+
+```{r norm_plot}
+pca_norm <- fastpca(lognorm)
+tsne_data <- Rtsne(pca_norm, pca=FALSE, max_iter = 5000)
+
+plot(pca_norm[,1:2], pch=19, col=bigPalette[colData(filtered)$Batch])
+plot(tsne_data$Y, pch=19, col=bigPalette[colData(filtered)$Batch])
+
+idx <- colnames(filtered)
+fig_data <- data.frame(PC1=pca_norm[,1], PC2=pca_norm[,2], colData(filtered),
+                       TSNE1=tsne_data$Y[,1], TSNE2=tsne_data$Y[,2])
+
+fig_pca <- ggplot(fig_data, aes(x = PC1, y = PC2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_pca
+
+fig_tsne <- ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+fig_tsne
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = log10_total_features)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+library(pheatmap)
+pheatmap(lognorm[rowData(scone_obj)$poscon,], main="Positive controls",
+         show_rownames = FALSE, show_colnames = FALSE)
+pheatmap(lognorm[rowData(scone_obj)$negcon_eval,], main="Negative controls",
+         show_rownames = FALSE, show_colnames = FALSE)
+```
+
+```{r norm_qc}
+cors <- lapply(1:10, function(i) abs(cor(pca_norm[,i], qc, method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(colnames(qc), 10), levels=colnames(qc)),
+                   Dimension=as.factor(rep(paste0("PC", 1:10), each=ncol(qc))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1) + 
+  ggtitle("Correlation between QC and expression PCA")
+```
+
+## ZINB-WaVE
+
+```{r zinbwave}
+run_zinbwave <- FALSE
+
+vars <- rowVars(lognorm)
+names(vars) <- rownames(filtered)
+vars <- sort(vars, decreasing = TRUE)
+
+colData(filtered)$ribo_pct <- qc[,"ribo_pct"]
+
+if(run_zinbwave) {
+library(BiocParallel)
+library(doParallel)
+registerDoParallel(7)
+register(DoparParam())
+
+zinb <- zinbFit(filtered[names(vars)[1:1000],], 
+                X = "~ Batch + ribo_pct + log10_total_features", 
+                K=10, epsilon=1000)
+save(zinb, file="combined_zinbwave_all_batches.rda")
+} else {
+  load("combined_zinbwave_all_batches.rda")
+}
+
+W <- getW(zinb)
+rownames(W) <- colnames(filtered)
+colnames(W) <- paste0("W", 1:10)
+tsne_zinb <- Rtsne(W, pca = FALSE, max_iter=5000)
+```
+
+```{r zinbwave_plot, dependson="zinbwave"}
+plot(W[,1:2], pch=19, col=bigPalette[colData(filtered)$Batch])
+
+plot(tsne_zinb$Y, pch=19, col=bigPalette[colData(filtered)$Batch])
+legend("topright", levels(colData(filtered)$Batch), fill=bigPalette)
+
+idx <- colnames(filtered)
+fig_data <- data.frame(W1 = W[,1], W2 = W[,2], colData(filtered),
+                       TSNE1=tsne_zinb$Y[,1], TSNE2=tsne_zinb$Y[,2]#,
+                       # Stress=colMeans(stress)[idx],
+                       # Apoptosis=colMeans(apoptosis)[idx],
+                       # Inflammatory=colMeans(inflammatory)[idx],
+                       # Estrogen=colMeans(estrogen)[idx],
+                       # Androgen=colMeans(androgen)[idx],
+                       # Hypoxia=colMeans(hypoxia)[idx],
+                      # Housekeeping=colMeans(simple[rownames(se)[which(rowData(se)$Symbol %in% hk)],])[idx]
+                      )
+
+ggplot(fig_data, aes(x = W1, y = W2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = W1, y = W2, color = log10_total_features)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = W1, y = W2, color = ribo_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = log10_total_counts)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = log10_total_features)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+ggplot(fig_data, aes(x = TSNE1, y = TSNE2, color = ribo_pct)) +
+  geom_point() + scale_color_continuous(low = "blue", high = "yellow")
+
+cors <- lapply(1:10, function(i) abs(cor(W[,i], qc, method="spearman")))
+cors <- unlist(cors)
+bars <- data.frame(AbsoluteCorrelation=cors,
+                   QC=factor(rep(colnames(qc), 10), levels=colnames(qc)),
+                   Dimension=as.factor(rep(paste0("W", 1:10), each=ncol(qc))))
+
+bars %>%
+  ggplot(aes(Dimension, AbsoluteCorrelation, group=QC, fill=QC)) +
+  geom_bar(stat="identity", position='dodge') +
+  scale_fill_manual(values=bigPalette) + ylim(0, 1) + 
+  ggtitle("Correlation between QC and W")
+```
+
+We use ribo_pct, total features, and batch as covariates in ZINB-WaVE.
+
+# Clustering using ZINB-WaVE projection
+
+Since the zinbwave results look better, we use these to do the clustering with clusterExperiment.
+
+```{r clustering_zinb, dependson="zinbwave", eval=FALSE}
+seed <- 278
+
+zinb_norm <- zinbwave(filtered[names(vars)[1:1000],], fitted_model=zinb)
+zinb_norm
+
+eval_clustermany <- TRUE
+if(eval_clustermany) {
+  cl <- clusterMany(t(W), isCount = FALSE, reduceMethod="none", 
+                    alphas = c(0.1, 0.3),
+                    sequential = TRUE, subsample = TRUE, minSizes = 5,
+                    clusterFun = c("hierarchical01"),
+                    ks = 4:15, random.seed = seed,
+                    ncores = 3, run=FALSE,
+                    subsampleArgs = list(resamp.num=100, clusterFunction="kmeans",
+                                         clusterArgs=list(nstart=1))
+  )
+  save(cl, file="clustermany_zinb_all_batches.rda")
+} else {
+  load("clustermany_zinb_all_batches.rda")
+}
+
+```
+
+```{r combine_zinb, dependson="clustering_zinb", eval=FALSE}
+cl <- combineMany(cl, proportion = .5, minSize = 10)
+
+cl <- makeDendrogram(cl, dimReduce = "none")
+plotDendrogram(cl)
+
+# assay(zinb_norm) <- assay(zinb_norm, "normalizedValues")
+newcl <- clusterExperiment(norm, clusterMatrixNamed(cl), transformation = log1p)
+# rownames(newcl) <- rownames(zinb_norm)
+newcl <- makeDendrogram(newcl, dimReduce = "var", ndims = 1000)
+plotDendrogram(newcl)
+
+newcl <- mergeClusters(newcl, mergeMethod = "locfdr", cutoff = 0.05, plotInfo="mergeMethod")
+colData(newcl)$Batch <- colData(filtered)$Batch
+
+plotClusters(newcl, sampleData = "Batch", whichClusters = "all", colPalette = c(bigPalette, rainbow(100)))
+newcl@coClustering <- cl@coClustering
+```
+
+```{r labels_zinb, dependson="combine_zinb", eval=FALSE}
+zinb_tight <- factor(clusterMatrixNamed(newcl)[,"combineMany"],
+                      levels=clusterLegend(newcl)[["combineMany"]][, "name"])
+names(zinb_tight) <- colnames(norm)
+
+zinb_merged <- factor(primaryClusterNamed(newcl),
+                       levels=clusterLegend(newcl)[["mergeClusters"]][, "name"])
+names(zinb_merged) <- colnames(norm)
+
+print(table(zinb_tight, zinb_merged))
+
+plotCoClustering(newcl, whichClusters = c("combineMany", "mergeClusters"),
+                 sampleData = "Batch")
+
+write.table(zinb_merged, file="merged_clusters_zinb.txt", quote=FALSE, sep='\t',
+            col.names = FALSE)
+
+write.table(zinb_tight, file="unmerged_clusters_zinb.txt", quote=FALSE, sep='\t',
+            col.names = FALSE)
+```
+
+Since `RSEC` takes quite a long time with 2,000 cells, we start by clustering the data with shared nearest neighbors.
+
+We will compare this to RSEC later, but for now it allows us to see a quick clustering of the data and see if we can confirm the major cell types.
+
+```{r seurat, results="hide"}
+library(Seurat)
+dat <- assay(filtered)
+rownames(dat) <- rowData(filtered)$Symbol
+rownames(dat)[rownames(dat) == "Smim20"] <- paste0("Smim20", 1:2)
+
+seu <- CreateSeuratObject(raw.data = dat)
+seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", slot = "cell.embeddings", 
+    new.data = W)
+seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", slot = "key", 
+    new.data = "zinbwave")
+
+seu <- FindClusters(object = seu, reduction.type = "zinbwave", dims.use = 1:10, 
+    resolution = seq(0, 2, 0.2), print.output = 0, save.SNN = TRUE)
+
+seu <- NormalizeData(object = seu, normalization.method = "LogNormalize", 
+    scale.factor = 10000)
+seu <- ScaleData(object = seu, vars.to.regress = c("nUMI"))
+
+seu <- ProjectDim(object = seu, reduction.type = "zinbwave")
+
+library(clustree)
+clustree(seu)
+```
+
+## Compare with previous clusters
+
+```{r clX, dependson="seurat"}
+library(clusterExperiment)
+load("clusterexperiment.rda")
+ll <- newcl@clusterMatrix[,newcl@primaryIndex]
+ll[ll != -1] <- paste0("m", ll[ll != -1])
+names(ll) <- colnames(newcl@assays[[1]])
+
+old_run <- rep("-2", NCOL(filtered))
+names(old_run) <- colnames(filtered)
+
+idx <- intersect(names(ll), names(old_run))
+old_run[idx] <- ll[idx]
+
+colidx <- grep("res.", colnames(seu@meta.data), fixed = TRUE)
+clustMat <- as.matrix(cbind(seu@ident, old_run, 
+                  seu@meta.data[,colidx[-c(1, length(colidx))]]))
+colnames(clustMat) <- c("Seurat", "OldRun", paste0("Seurat", seq(0.2, 1.8, by=.2)))
+
+cl2 <- ClusterExperiment(norm, clustMat, transformation = log1p)
+
+leg <- newcl@clusterLegend[[1]]
+clusterLegend(cl2)[[2]] <- rbind(leg, c("-2", "grey", "-2"))
+rownames(clusterLegend(cl2)[[2]])[NROW(clusterLegend(cl2)[[2]])] <- 12
+
+clusterLegend(cl2)[[1]][,"name"] <- paste0("S", clusterLegend(cl2)[[1]][,"name"]) 
+clusterLegend(cl2)[[1]][,"color"] <- massivePalette[-(1:11)][1:NROW(clusterLegend(cl2)[[1]])]
+colData(cl2) <- colData(filtered)
+
+gfp <- rep("no", NCOL(filtered))
+gfp[filtered$Batch == "TdT+GFP+"] <- "GFP"
+gfp <- as.factor(gfp)
+colData(cl2)$gfp <- gfp
+
+plotClusters(cl2, whichClusters = 2:1, existingColors = "firstOnly",
+             sampleData = c("Batch", "gfp"))
+
+plotClusters(cl2, existingColors = "firstOnly")
+
+plotClusters(cl2, whichClusters = c(1, 2), sampleData = c("gfp"), existingColors = "firstOnly")
+```
+
+## Visualization
+
+```{r visualize_seurat, dependson="clX"}
+cols1 <- clusterLegend(cl2)[[1]][, "color"]
+names(cols1) <- clusterLegend(cl2)[[1]][, "name"]
+cols2 <- clusterLegend(cl2)[[2]][, "color"]
+names(cols2) <- clusterLegend(cl2)[[2]][, "name"]
+cols2[c("-1", "-2")] <- "transparent"
+
+pal2 <- c("#33A02C", "magenta2")
+
+colMerged1 <- cols1[primaryClusterNamed(cl2)]
+colMerged2 <- cols2[clusterMatrixNamed(cl2)[,2]]
+
+lab_s <- factor(primaryClusterNamed(cl2),
+                       levels=clusterLegend(cl2)[[1]][, "name"])
+lab_o <- factor(clusterMatrixNamed(cl2)[,2],
+                       levels=clusterLegend(cl2)[[2]][, "name"])
+
+plot(W, pch=19, col=colMerged1, main="W, Seurat")
+legend("bottomright", levels(lab_s), fill=cols1[levels(lab_s)])
+
+plot(W, pch=19, col=colMerged2, main="W, old data")
+legend("bottomright", levels(lab_o), fill=cols2[levels(lab_o)])
+
+plot(tsne_zinb$Y, pch=19, col=colMerged1, main="t-SNE, All genes, Seurat",
+     xlab="Dim 1", ylab="Dim 2")
+
+plot(tsne_zinb$Y, pch=19, col=colMerged2, main="t-SNE, All genes, old data",
+     xlab="Dim 1", ylab="Dim 2")
+
+plot(tsne_zinb$Y, pch=19, col=pal2[cl2$gfp])
+legend("topleft", levels(cl2$gfp), fill=pal2)
+
+tab <- table(lab_s, gfp)
+print(tab)
+print(round(tab/rowSums(tab), 2))
+
+print(table(lab_o, lab_s))
+```
+
+# Marker genes
+
+```{r heatmap_zinb, dependson=c("clX", "visualize_seurat")}
+reducedDim(cl2, "zinbwave") <- W
+rownames(cl2) <- rowData(filtered)$Symbol
+
+cl2 <- makeDendrogram(cl2, reduceMethod = "zinbwave", nDims = 10)
+plotDendrogram(cl2, plotType = "name", leafType = "clusters")
+
+mergeClusters(cl2, mergeMethod = "adjP", cutoff = 0.05, plotInfo="mergeMethod")
+
+genes <- getBestFeatures(cl2, contrastType = "Dendro", isCount=TRUE, number = 100)
+head(genes)
+
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            sampleData = c("gfp", "Batch"),
+            clusterFeaturesData=unique(genes[,"IndexInOriginal"]), breaks=.99)
+
+pdf("heatmap_dendro_zinb_all_batch.pdf", height = 14)
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            sampleData = c("gfp", "Batch"),
+            clusterFeaturesData=unique(genes[,"IndexInOriginal"]), breaks=.99)
+dev.off()
+
+genes_1vall <- getBestFeatures(cl2, contrastType = "OneAgainstAll", isCount=FALSE,
+                               number=100)
+
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue", breaks=.95,
+            sampleData = c("gfp", "Batch"),
+            clusterFeaturesData=unique(genes_1vall[,"IndexInOriginal"]))
+
+pdf("heatmap_1vall_zinb_all_batch.pdf", height = 14)
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue", breaks=.95,
+            sampleData = c("gfp", "Batch"),
+            clusterFeaturesData=unique(genes_1vall[,"IndexInOriginal"]))
+dev.off()
+
+genes_5 <- getBestFeatures(cl2, contrastType = "OneAgainstAll", isCount=FALSE,
+                               number=5)
+
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            sampleData = c("gfp", "Batch"),
+            clusterFeaturesData=unique(genes_5[,"IndexInOriginal"]), breaks=.99)
+
+pdf("heatmap_1vall_5_zinb_all_batch.pdf")
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            sampleData = c("gfp", "Batch"),
+            clusterFeaturesData=unique(genes_5[,"IndexInOriginal"]), breaks=.99)
+dev.off()
+
+genes_5 <- getBestFeatures(cl2, contrastType = "Dendro", isCount=FALSE,
+                               number=5)
+
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            sampleData = c("gfp", "Batch"),
+            clusterFeaturesData=unique(genes_5[,"IndexInOriginal"]), breaks=.99)
+
+pdf("heatmap_dendro_5_zinb_all_batch.pdf")
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            sampleData = c("gfp", "Batch"),
+            clusterFeaturesData=unique(genes_5[,"IndexInOriginal"]), breaks=.99)
+dev.off()
+
+top <- getBestFeatures(cl2, contrastType="Dendro", isCount=FALSE, number=Inf, p.value=0.05)
+
+xx <- factor(primaryClusterNamed(cl2), levels=paste0("S", 0:(nClusters(cl2)[1]-1)))
+means <- t(apply(log1p(assay(cl2))[top$Feature,], 1, tapply, xx, mean))
+
+retval <- cbind(top, means[top$Feature,])[, -c(3, 5, 7, 8, 11)]
+write.table(retval, "DE_genes_dendro_merged_zinb_all_batches.txt", quote=FALSE, sep="\t")
+
+top <- getBestFeatures(cl2, contrastType = "OneAgainstAll", isCount=FALSE, number=Inf, p.value=0.05)
+
+means <- t(apply(log1p(assay(cl2))[top$Feature,], 1, tapply, xx, mean))
+retval <- cbind(top, means[top$Feature,])[, -c(3, 5, 7, 8, 11)]
+
+map <- data.frame(ids = paste0("Cl", stringr::str_pad(1:nClusters(cl2)[1], width=2, pad=0)),
+                  Contrast = clusterLegend(cl2)[[1]][,"name"], stringsAsFactors = FALSE)
+retval <- dplyr::inner_join(retval, map, by = c("ContrastName" = "ids"))[,-(1:2)]
+
+write.table(retval, "DE_genes_1vall_merged_zinb_all_batches.txt", quote=FALSE, sep="\t")
+```
+
+```{r markers_zinb, dependson="heatmap_zinb"}
+markers <- list(m1=c("Ddit4l", "Whrn", "Plb1", "Aldh1l1", "Endou", "Thsd7a", "Spock3",
+                     "Car4"),
+                m3=c("Nnat", "Syt17", "Cdh13", "Cpne7", "Cnr1", "Plxna4"),
+                m7=c("Crym", "Tcerg1l", "Fam84b", "Serpine2", "Fam84a",
+                     "Bcl11b", "Bcl6", "Igfbp4", "Fezf2", "Npr3"),
+                m8=c("Hsd11b1", "Myl4", "Deptor", "Cplx2", "Tbr1", "Dkk3")
+)
+markers <- unlist(markers)
+
+pdf("heatmap_manual_markers_all_batch.pdf")
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            sampleData = c("gfp", "Batch"),
+            clusterFeaturesData=which(rownames(cl2) %in% markers), breaks=.99)
+dev.off()
+
+pdf("markers_zinb_dendro_all_batch.pdf")
+plotContrastHeatmap(cl2, genes_5)
+dev.off()
+
+genes_5b <- getBestFeatures(cl2, contrastType = "OneAgainstAll", isCount=TRUE,
+                               number=5)
+
+pdf("markers_zinb_1vall_all_batch.pdf")
+plotContrastHeatmap(cl2, genes_5b)
+dev.off()
+```
+
+```{r save, dependson="clX"}
+table(lab_s, cl2$Batch)
+save(cl2, file="clusterexperiment_all_batches.rda")
+```
+
+```{r allen, dependson="heatmap_zinb"}
+fig2 <- c("Sst", "Chodl", "Nos1", "Etv1", "Il1rapl2", "Myh8", "Chrna2",
+          "Tac2", "Crhr2", "Calb2", "Hpse", "C1ql3", "Crh", "Nts", "Pvalb",
+          "Gabrg1", "Th", "Prdm8", "Calb1", "Reln", "Gpr149", "Cpne5",
+          "Vipr2", "Nkx2.1")
+
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            sampleData = c("gfp"),
+            clusterFeaturesData=which(rownames(cl2) %in% fig2), breaks=.99)
+
+pdf("heatmap_markers_allen_fig2.pdf")
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            sampleData = c("gfp"),
+            clusterFeaturesData=which(rownames(cl2) %in% fig2), breaks=.99)
+dev.off()
+
+rownames(lognorm) <- rownames(cl2)
+
+library(ggridges)
+df <- data.frame(t(lognorm[intersect(c(fig2, "GFP", "tdTomato"), rownames(lognorm)),]),
+                 Cluster = lab_s, Batch = cl2$Batch)
+
+ggplot(df, aes(x = Calb1, y = Batch, fill = Batch)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = bigPalette) +
+  ggtitle("Calb1 expression")
+
+ggplot(df, aes(x = Calb2, y = Batch, fill = Batch)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = bigPalette) +
+  ggtitle("Calb2 expression")
+
+ggplot(df, aes(x = Sst, y = Batch, fill = Batch)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = bigPalette) +
+  ggtitle("Sst expression")
+
+ggplot(df, aes(x = Calb1, y = Cluster, fill = Cluster)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = cols1) +
+  ggtitle("Calb1 expression")
+
+ggplot(df, aes(x = Calb2, y = Cluster, fill = Cluster)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = cols1) +
+  ggtitle("Calb2 expression")
+
+ggplot(df, aes(x = Sst, y = Cluster, fill = Cluster)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = cols1) +
+  ggtitle("Sst expression")
+
+ggplot(df, aes(x = Pvalb, y = Cluster, fill = Cluster)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = cols1) +
+  ggtitle("Pvalb expression")
+
+ggplot(df, aes(x = Reln, y = Cluster, fill = Cluster)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = cols1) +
+  ggtitle("Reln expression")
+
+ggplot(df, aes(x = Myh8, y = Cluster, fill = Cluster)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = cols1) +
+  ggtitle("Myh8 expression")
+
+ggplot(df, aes(x = C1ql3, y = Cluster, fill = Cluster)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = cols1) +
+  ggtitle("C1ql3 expression")
+
+ggplot(df, aes(x = GFP, y = Cluster, fill = Cluster)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = cols1) +
+  ggtitle("GFP expression")
+
+ggplot(df, aes(x = tdTomato, y = Cluster, fill = Cluster)) +
+  geom_density_ridges() + 
+  scale_fill_manual(values = cols1) +
+  ggtitle("tdTomato expression")
+```
+
+# Remove S12, S13, S14
+
+```{r remove_samples, dependson="heatmap_zinb"}
+wh_rm <- which(primaryClusterNamed(cl2) %in% paste0("S", 12:14))
+
+tsne_sub <- Rtsne(W[-wh_rm,], pca = FALSE, max_iter=5000)
+
+plot(tsne_sub$Y, pch=19, col=colMerged1[-wh_rm], xlab="Dim 1", ylab="Dim 2")
+
+plot(tsne_sub$Y, pch=19, col=pal2[cl2$gfp[-wh_rm]], xlab="Dim 1", ylab="Dim 2")
+
+pdf("tsne_cluster_no_outlier.pdf")
+plot(tsne_sub$Y, pch=19, col=colMerged1[-wh_rm], xlab="Dim 1", ylab="Dim 2")
+dev.off()
+
+pdf("tsne_gfp_no_outlier.pdf")
+plot(tsne_sub$Y, pch=19, col=pal2[cl2$gfp[-wh_rm]], xlab="Dim 1", ylab="Dim 2")
+dev.off()
+```
+
+# Allen clusters
+
+```{r allen_clusters, cache=FALSE}
+load("~/git/allen/data/smart_seq/aibs_rseq_analysis_2018.02.09.001/clusterX.rda")
+
+sce <- sce[, grep("^Sst", primaryClusterNamed(sce))]
+sce <- makeDendrogram(sce, reduceMethod = "seurat_pca", nDims = 20)
+
+plotDendrogram(sce, plotType = "name", leafType = "clusters")
+
+genes_5 <- getBestFeatures(cl2, contrastType = "OneAgainstAll", isCount=TRUE,
+                               number=50)
+
+genes_5 <- genes_5[genes_5$logFC > 0,]
+
+names <- clusterLegend(cl2)[[1]][,"name"]
+levs <- levels(genes_5$ContrastName)
+
+plotHeatmap(cl2, clusterSamplesData = "dendrogramValue",
+            clusterFeaturesData=which(rownames(cl2) %in% genes_5[, "Feature"]),
+            breaks=.95,
+            whichClusters = 1)
+
+plotHeatmap(sce, clusterSamplesData = "dendrogramValue",
+            clusterFeaturesData=which(rownames(sce) %in% genes_5[, "Feature"]),
+            breaks=.95,
+            whichClusters = c("cluster1"))
+
+```
+
+## Mapping clusters with `scmap`
+
+```{r scmap, cache=FALSE, results="asis"}
+library(scmap)
+sce2 <- as(sce, "SingleCellExperiment")
+rowData(sce2)$feature_symbol <- rownames(sce2)
+assayNames(sce2) <- "normcounts"
+logcounts(sce2) <- log2(normcounts(sce2) + 1)
+
+sce2 <- selectFeatures(sce2, suppress_plot = TRUE)
+sce2 <- indexCluster(sce2, cluster_col = "cluster_label")
+
+cl3 <- as(cl2, "SingleCellExperiment")
+rowData(cl3)$feature_symbol <- rownames(cl3)
+normcounts(cl3) <- assay(cl3)
+logcounts(cl3) <- log2(normcounts(cl3) + 1)
+
+scmapCluster_results <- scmapCluster(
+  projection = cl3, 
+  index_list = list(
+    Allen = metadata(sce2)$scmap_cluster_index
+  ), threshold = 0.6
+)
+
+cols <- sapply(cols1, function(x) {
+  y <- col2rgb(x)[,1]
+  rgb(y[1]/255, y[2]/255, y[3]/255)
+})
+cols <- cols[c("S0", "S2", "S4", "S1", "S6", "S8", "S3", "S11", "S7", "S5", "S9", "S10", "S13", "S12", "S14")]
+
+plot(
+  getSankey(
+    primaryClusterNamed(cl2), 
+    scmapCluster_results$scmap_cluster_labs[,'Allen'],
+    plot_height = 1000, colors = cols
+  ), tag="chart"
+)
+
+plot(
+  getSankey(
+    cl2$gfp, 
+    scmapCluster_results$scmap_cluster_labs[,'Allen'],
+    plot_height = 1000, colors = c("grey", "green")
+  ), tag="chart"
+)
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
