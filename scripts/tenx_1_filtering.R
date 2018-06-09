@@ -113,10 +113,10 @@ ggplot(fig_data, aes(x = PC1, y = PC2, color = batch)) +
 ggplot(fig_data, aes(x = QPC1, y = QPC2, color = batch)) +
   geom_point(alpha = 0.3) + scale_color_manual(values = colb) + ggtitle("QC metric PCA")
 
-invisible(list("log10_total_counts", "ribo_pct", "mito_pct", "log10_total_features"), function(feature) {
+invisible(lapply(list("log10_total_counts", "ribo_pct", "mito_pct", "log10_total_features"), function(feature) {
   pcaggplot(fig_data, "Expression PCA", feature)
   pcaggplot(fig_data, "QC metric PCA", feature)
-})
+}))
 
 dev.off()
 
