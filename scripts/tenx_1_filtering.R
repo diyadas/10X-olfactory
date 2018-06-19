@@ -1,6 +1,6 @@
 # Filtering of 10X data
 # Authors: Russell Fletcher, Diya Das, and Rebecca Chance
-# Last revised: Mon Jun 18 17:46:53 2018 ------------------------------
+# Last revised: Tue Jun 19 11:54:38 2018
 
 # Load command-line arguments
 rm(list = ls())
@@ -30,6 +30,7 @@ vizdir <- file.path("../output", exptstr, "viz", "prenormalization")
 crdir <- file.path("../output", exptstr, "cr")
 exptinfo <- read.csv(file.path("../output", exptstr, opt$exptinfo),
                      stringsAsFactors = FALSE)
+system(paste("mkdir -p", c(outdir, vizdir)))
 
 # Set up packages and parallel environment
 library(BiocParallel)
@@ -46,17 +47,15 @@ source("tenx_helper.R")
 
 # ---- Loading data ----
 # Load counts, batch, expt and create SummarizedExperiment
-expt <- as.factor(as.vector(apply(exptinfo, 1, function(crexpt) {
+expt_batch <- apply(exptinfo, 1, function(crexpt) {
   crmat <- load_cellranger_matrix(file.path(crdir, crexpt[1]))
   # crexpt[1] is the library_id field, i.e. RCOB2A
-  return(rep(crexpt[2], ncol(exprs(crmat))))
-})))
-
-batch <- as.factor(as.vector(apply(exptinfo, 1, function(crexpt) {
-  crmat <- load_cellranger_matrix(file.path(crdir, crexpt[1]))
-  # crexpt[1] is the library_id field, i.e. RCOB2A
-  return(rep(crexpt[3], ncol(exprs(crmat))))
-})))
+  return(data.frame(expt = rep(crexpt[2], ncol(exprs(crmat))), 
+                    batch = rep(crexpt[3], ncol(exprs(crmat)))))
+})
+expt_batch <- do.call(rbind, expt_batch)
+expt <- expt_batch$expt
+batch <- expt_batch$expt
 
 counts <- as.matrix(exprs(load_cellranger_matrix(file.path(crdir, opt$aggr))))
 
@@ -72,17 +71,17 @@ rownames(se) <- rowData(se)$Symbol
 # Exploratory Data Analysis
 pdf(file = file.path(vizdir, pasteu(exptstr, "EDA_prefilt.pdf")),
     length = 11, width = 8.5)
-makeEDAplots(se, "Pre-filtering\n") # function in helper script
+detectedgeneplot(se, "Pre-filtering\n") # function in helper script
 dev.off()
 
-# Calculate QC metrics
+# ---- Calculate QC metrics and plot ----
 runQCmetrics <- FALSE
 fast <- FALSE
 if (runQCmetrics) {
-  simple <- assay(se)[rowSums(assay(se)) > 10, ]
-  simple <- SUM_FN(simple)
-  pca <- ifelse(fast, fastpca(log2(simple + 0.1)),
-                prcomp(t(simple), scale. = TRUE))
+  se_simple <- assay(se)[rowSums(assay(se)) > 10, ]
+  se_simple <- SUM_FN(se_simple)
+  pca <- ifelse(fast, fastpca(log2(se_simple + 0.1)),
+                prcomp(t(se_simple), scale. = TRUE))
   
   # Use scater package to calculate some quality control metrics.
   # only works with unique identifiers - Ensembl IDs,
@@ -92,8 +91,8 @@ if (runQCmetrics) {
   sce <- as(se, "SingleCellExperiment")
   
   # Calculate mitochondrial and ribosomal percentage in each sample
-  ribo_idx <- grep("^Rpl|^Rps", rowData(se)[, 2])
-  mito_idx <- grep("^Mt", rowData(se)[, 2])
+  ribo_idx <- grep("^Rpl|^Rps", rowData(se)$Symbol)
+  mito_idx <- grep("^Mt", rowData(se)$Symbol)
   ribo_pct <- colSums(assay(se)[ribo_idx, ]) / colSums(assay(se)) * 100
   mito_pct <- colSums(assay(se)[mito_idx, ]) / colSums(assay(se)) * 100
   
@@ -107,13 +106,14 @@ if (runQCmetrics) {
   load(file.path(outdir, pasteu(exptstr, "prefilt.Rda")))
 }
 
-pdf(file = file.path(vizdir, pasteu(exptstr, "QCindex_prefilt.pdf")),
+pdf(file = file.path(vizdir, pasteu(exptstr, "mitoribo_prefilt.pdf")),
     length = 11, width = 8.5)
 plot(qc$mito_pct, col = colb[batch], xlab = "cell index",
      main = "% mito (Mt*) genes")
 legend("topleft", legend = levels(batch), fill = colb, cex = 0.8)
 boxplot(qc$mito_pct ~ colData(se)$batch, main = "percent mito genes",
         col = colb, las = 2, cex.axis = 0.7)
+
 plot(qc$ribo_pct, col = colb[batch], xlab = "cell index", 
      main = "% ribo (Rpl*) genes")
 legend("topleft", legend = levels(batch), fill = colb, cex = 0.8)
@@ -121,7 +121,7 @@ boxplot(qc$ribo_pct ~ colData(se)$batch, main = "percent ribo genes",
         col = colb, las = 2, cex.axis = 0.7)
 dev.off()
 
-message(paste("Percent total variance captured in first 10 expression PCs is",
+print(paste("Percent total variance captured in first 10 expression PCs is",
   round(cumsum(pca$sdev ^ 2 / sum(pca$sdev ^ 2))[10] * 100, digits = 2)
 ))
 
@@ -131,8 +131,7 @@ screeplot(pca, type = "lines", npcs = 50, main = "Expression PCA screeplot")
 screeplot(qcpca, type = "lines", main = "QC-PCA screeplot")
 
 fig_data <- data.frame(pca$x[, 1:2], qc, 
-                       QPC1 = qcpca$x[, 1],
-                       QPC2 = qcpca$x[, 2],
+                       QPC1 = qcpca$x[, 1], QPC2 = qcpca$x[, 2],
                        batch = batch)
 
 ggplot(fig_data, aes(x = PC1, y = PC2, color = batch)) +
@@ -152,7 +151,7 @@ for (feature in
 }
 dev.off()
 
-# Filtering
+# ---- Filtering ----
 # store QC metrics with SummarizedExperiment object
 colData(se) <- cbind(colData(se), qc)
 se <- se[rowSums(assay(se)) > 0, ] # select expressed genes only
@@ -163,49 +162,37 @@ num_cells <- 0.25 * ncol(se)
 is_common <- rowSums(assay(se) >= num_reads) >= num_cells
 table(is_common)
 
-hk <- read.table(hkfile)
-hk <- as.character(hk[, 1])
+hk <- as.character(unlist(read.table(hkfile)))
 hk <- intersect(hk, rowData(se)$Symbol)
-hk_idx <- which(rowData(se)$Symbol %in% hk)
 
-mfilt <- metric_sample_filter(
-  assay(se),
-  nreads = colData(sce)$total_counts,
-  gene_filter = is_common,
-  pos_controls = hk_idx,
-  hard_nreads = 2000,
-  zcut = 3,
-  mixture = FALSE,
-  plot = TRUE
-)
 pdf(file = file.path(viz_dir, pasteu(exptstr, "msf_prefilt.pdf")),
     title = "metric_sample_filtering")
 mfilt <- metric_sample_filter(
   assay(se),
   nreads = colData(sce)$total_counts,
   gene_filter = is_common,
-  pos_controls = hk_idx,
+  pos_controls = hk,
   hard_nreads = 2000,
   zcut = 3,
   mixture = FALSE,
   plot = TRUE
 )
 
-pcapairs_msf <- function(pca, mfilt, metric, title) {
+msfpcapairsplot <- function(pca, mfilt, metric, title) {
   plot(
     pca$x,
     pch = 19,
     col = pal[as.numeric(mfilt[[metric]]) + 1],
-    main = paste(deparse(substitute(pca)), "Filtered on", title)
+    main = paste(toupper(deparse(substitute(pca))), "Filtered on", title)
   )
 }
 
-pcapairs_msf(pca, mfilt, "filtered_breadth", "transcriptome 'breadth'")
-pcapairs_msf(pca, mfilt, "filtered_fnr", "FNR AUC")
-pcapairs_msf(pca, mfilt, "filtered_nreads", "nreads")
-pcapairs_msf(qcpca, mfilt, "filtered_breadth", "transcriptome 'breadth'")
-pcapairs_msf(qcpca, mfilt, "filtered_fnr", "FNR AUC")
-pcapairs_msf(qcpca, mfilt, "filtered_nreads", "nreads")
+msfpcapairsplot(pca, mfilt, "filtered_breadth", "transcriptome 'breadth'")
+msfpcapairsplot(pca, mfilt, "filtered_fnr", "FNR AUC")
+msfpcapairsplot(pca, mfilt, "filtered_nreads", "nreads")
+msfpcapairsplot(qcpca, mfilt, "filtered_breadth", "transcriptome 'breadth'")
+msfpcapairsplot(qcpca, mfilt, "filtered_fnr", "FNR AUC")
+msfpcapairsplot(qcpca, mfilt, "filtered_nreads", "nreads")
 
 table(mfilt$filtered_nreads, mfilt$filtered_fnr)
 filter_cell <- !apply(simplify2array(mfilt[!is.na(mfilt)]), 1, any)
@@ -216,17 +203,17 @@ plot(qcpca$x,
      main = "PCA Filtered")
 dev.off()
 
-# Final Gene Filtering: Highly expressed in at least 5 cells
+# ---- Final gene filtering: highly expressed in at least N cells ----
 num_reads <- quantile(assay(se)[assay(se) > 0])[4]
-num_cells = 3
-is_quality = rowSums(assay(se) >= num_reads) >= num_cells
+num_cells <- 3
+is_quality <- rowSums(assay(se) >= num_reads) >= num_cells
 table(is_quality)
-filtered <- se[is_quality, filter_cell]
-dim(filtered)
-rownames(filtered) <- rowData(filtered)$Symbol
-qc <- qc[colnames(filtered), ]
-batch <- colData(filtered)$batch
-expt <- colData(filtered)$expt
+se_filtered <- se[is_quality, filter_cell]
+dim(se_filtered)
+rownames(se_filtered) <- rowData(se_filtered)$Symbol
+qc <- qc[colnames(se_filtered), ]
+batch <- colData(se_filtered)$batch
+expt <- colData(se_filtered)$expt
 
 # Check for batch effects prior to normalization
 pdf(file = file.path(viz_dir, pasteu(exptstr, "batchchk_prefilt.pdf")))
@@ -242,59 +229,44 @@ boxplot(pca$x[, 1] ~ colData(se)$batch, col = colb, cex.axis = 0.75, las = 2,
 boxplot(pca$x[, 2] ~ colData(se)$batch, col = colb, cex.axis = 0.75, las = 2,
         main = "Second Principal Component")
 
-simple <- assay(filtered)
-
-pca <- fastpca(log2(simple + 1))
+pca <- fastpca(log2(assay(se_filtered) + 1))
 tsne_data <- Rtsne(pca[, 1:10], pca = FALSE, max_iter = 5000)
 plot(tsne_data$Y, pch = 19, cex = 0.4, 
-     col = alpha(colb[colData(filtered)$batch], 0.5))
+     col = alpha(colb[colData(se_filtered)$batch], 0.5))
 legend("topleft", legend = levels(batch), fill = colb, cex = 0.5)
 dev.off()
 
-# Preparation for normalization
-poscon <- intersect(as.character(read.table(opt$posctrlfile)$V1),
-                    rowData(filtered)$Symbol)
-rowData(filtered)$poscon <- (rowData(filtered)$Symbol %in% poscon)
+# ---- Preparation for normalization ----
+poscon <- intersect(as.character(unlist(read.table(opt$posctrlfile))),
+                    rowData(se_filtered)$Symbol)
+rowData(se_filtered)$poscon <- rowData(se_filtered)$Symbol %in% poscon
 
 # select negative controls (housekeeping)
-hk <- intersect(hk, rowData(filtered)$Symbol)
-negconeval <- sample(hk, length(poscon) / 2)
-negconruv <- setdiff(hk, negconeval)
+hk <- intersect(hk, rowData(se_filtered)$Symbol)
+negcon_eval <- sample(hk, length(poscon) / 2)
+negcon_ruv <- setdiff(hk, negcon_eval)
 
-rowData(filtered)$negcon_eval <- rowData(filtered)$Symbol %in% negconeval
-rowData(filtered)$negcon_ruv <- rowData(filtered)$Symbol %in% negconruv
+rowData(se_filtered)$negcon_eval <- 
+  rowData(se_filtered)$Symbol %in% negcon_eval
+rowData(se_filtered)$negcon_ruv <- rowData(se_filtered)$Symbol %in% negcon_ruv
 
-# Gene expression plots post filtering, but pre-normalization
-filtCounts <- assay(filtered)
-logfiltCounts <- log2(filtCounts + 1) 
-  #### check whether this could be replaced with transform(filtered)
+# ---- Gene expression plots post filtering, but pre-normalization ----
+counts_filtered <- assay(se_filtered)
+logcounts_filtered <- log2(counts_filtered + 1) 
 
-pdf(file = file.path(vizdir, pasteu(exptstr, "poscon_heatmap.pdf")),
-  title = "poscon heatmap")
-plotHeatmap(logfiltCounts[rowData(filtered)$poscon, ],
-            sampleData = data.frame(expt = colData(filtered)$expt, 
-                                    batch = colData(filtered)$batch),
-            clusterLegend = list(expt = cole, batch = colb),
-            main = "Positive controls", breaks = .99)
-dev.off()
-
-pdf(file = file.path(vizdir, pasteu(exptstr, "negconeval_heatmap.pdf")),
-    title = "negconeval heatmap")
-plotHeatmap(logfiltCounts[rowData(filtered)$negcon_eval, ],
-            sampleData = data.frame(expt = colData(filtered)$expt, 
-                                    batch = colData(filtered)$batch),
-            clusterLegend = list(expt = cole, batch = colb),
-            main = "Negative controls", breaks = .99)
-dev.off()
-
-pdf(file = file.path(vizdir, pasteu(exptstr, "negconruv_heatmap.pdf")),
-    title = "negconruv heatmap")
-plotHeatmap(logfiltCounts[rowData(filtered)$negcon_ruv, ],
-            sampleData = data.frame(expt = colData(filtered)$expt, 
-                                    batch = colData(filtered)$batch),
-            clusterLegend = list(expt = cole, batch = colb),
-            main = "Negative controls", breaks = .99)
-dev.off()
+controlheatmaps <- function(controllist, se_filtered){
+  pdf(file = file.path(vizdir, pasteu(exptstr, controllist, "heatmap.pdf")))
+  plotHeatmap(logcounts_filtered[rowData(se_filtered)[[controllist]], ],
+              sampleData = data.frame(expt = colData(se_filtered)$expt, 
+                                      batch = colData(se_filtered)$batch),
+              clusterLegend = list(expt = cole, batch = colb),
+              main = paste(toupper(controllist), "after filtering"), 
+              breaks = .99)
+  dev.off()
+}
+controlheatmaps("poscon", se_filtered)
+controlheatmaps("negcon_eval", se_filtered)
+controlheatmaps("negcon_ruv", se_filtered)
 
 # Correlation of QC metrics with expression PCs for filtered data
 cors <- sapply(1:5, function(i) abs(cor(pca[, i], qc, method = "spearman")))
@@ -305,13 +277,14 @@ bars <- data.frame(
 )
 
 pdf(file = file.path(vizdir, pasteu(exptstr, "cor_qc_exprPCA.pdf")))
-bars %>% ggplot(aes(Dimension, AbsoluteCorrelation, group = QC, fill = QC)) +
+  ggplot(bars, aes(Dimension, AbsoluteCorrelation, group = QC, fill = QC)) +
   geom_bar(stat = "identity", position = 'dodge') +
   scale_fill_manual(values = bigPalette) + ylim(0, 1) +
   ggtitle("Correlation between QC and expression PCA")
 dev.off()
 
-save(qc, pca, filtered, batch, expt,
-     file = file.path(outdir, pasteu(exptstr, "_filtered.Rda")))
-save(filtCounts, logfiltCounts,
-     file = file.path(outdir, pasteu(exptstr, "_filteredCounts.Rda")))
+# ---- Save output ----
+save(qc, pca, se_filtered, batch, expt,
+     file = file.path(outdir, pasteu(exptstr, "_se_filtered.Rda")))
+save(counts_filtered, logcounts_filtered,
+     file = file.path(outdir, pasteu(exptstr, "_counts_filtered.Rda")))
