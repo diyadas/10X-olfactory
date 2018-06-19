@@ -12,7 +12,7 @@ fastpca <- function(expr, scale=FALSE) {
   return(pc_raw)
 }
 
-makeEDAplots <- function(se, plot_title=""){
+detectedgeneplot <- function(se, plot_title=""){
   hist(colSums(assay(se)), breaks = 30,
     xlab = 'Number of UMI',
     main = paste(plot_title, "Number of UMI per sample"))
