@@ -312,6 +312,6 @@ bars %>% ggplot(aes(Dimension, AbsoluteCorrelation, group = QC, fill = QC)) +
 dev.off()
 
 save(qc, pca, filtered, batch, expt,
-     file = file.path(outdir, pasteu(exptstr, "_filtered.rda")))
+     file = file.path(outdir, pasteu(exptstr, "_filtered.Rda")))
 save(filtCounts, logfiltCounts,
-     file = file.path(outdir, pasteu(exptstr, "_filteredCounts.rda")))
+     file = file.path(outdir, pasteu(exptstr, "_filteredCounts.Rda")))
