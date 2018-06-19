@@ -14,7 +14,7 @@ option_list <- list(
   make_option("--exptinfo", type = "character",
               help = "text file with list of cellranger experiments, from 
               aggregate...csv, expanded with columns for expt and batch: \n 
-              column 1: library_id, column 2: expt, column 3: batch"),
+              column 1: library_id, column 3: expt, column 4: batch"),
   make_option("--annotation", default = "GRCm38p4Mm10", type = character,
               help = "name of genomic reference used by cellranger"),
   make_option("--hkfile", default = "../ref/hkl615.txt", type = character, 
@@ -50,8 +50,8 @@ source("tenx_helper.R")
 expt_batch <- apply(exptinfo, 1, function(crexpt) {
   crmat <- load_cellranger_matrix(file.path(crdir, crexpt[1]))
   # crexpt[1] is the library_id field, i.e. RCOB2A
-  return(data.frame(expt = rep(crexpt[2], ncol(exprs(crmat))), 
-                    batch = rep(crexpt[3], ncol(exprs(crmat)))))
+  return(data.frame(expt = rep(crexpt[3], ncol(exprs(crmat))), 
+                    batch = rep(crexpt[4], ncol(exprs(crmat)))))
 })
 expt_batch <- do.call(rbind, expt_batch)
 expt <- expt_batch$expt
