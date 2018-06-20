@@ -6,6 +6,7 @@
 rm(list = ls())
 options(getClass.msg = FALSE)
 library(optparse)
+
 option_list <- list(
   make_option("--expt", type = "character", help = "Experiment ID"),
   make_option("--ncores", default = "1", type = "double"),
@@ -15,12 +16,12 @@ option_list <- list(
               help = "text file with list of cellranger experiments, from 
               aggregate...csv, expanded with columns for expt and batch: \n 
               column 1: library_id, column 3: expt, column 4: batch"),
-  make_option("--annotation", default = "GRCm38p4Mm10", type = character,
+  make_option("--annotation", default = "GRCm38p4Mm10", type = "character",
               help = "name of genomic reference used by cellranger"),
-  make_option("--hkfile", default = "../ref/hkl615.txt", type = character, 
+  make_option("--hkfile", default = "../ref/hkl615.txt", type = "character", 
               help = "path to file containing housekeeping genes"),
   make_option("--posctrlfile", default = "../ref/oeRegPosCon.txt", 
-              type = character,
+              type = "character",
               help = "path to file containing positive control genes")
   )
 opt <- parse_args(OptionParser(option_list = option_list))
