@@ -1,0 +1,86 @@
+---
+title: "Rebecca's OE Candidate Injurey Cue Signaling Pathway Analysis"
+author: "RebeccaKChance"
+date: "June 13, 2018"
+output: html_document
+---
+```{r options, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE, error=FALSE, message=FALSE, warning=FALSE)
+
+## Update bioconductor and clusterExperiment
+
+setwd("C:/RCOB")
+install.packages('installr')
+library("installr")
+installr()  #remove old Rs control panel programs R so libraries aren't confused
+
+library(devtools)
+assignInNamespace("version_info", c(devtools:::version_info, list("3.5" = list(version_min = "3.3.0", version_max = "99.99.99", path = "bin"))), "devtools")
+find_rtools() # is TRUE now
+
+source("https://bioconductor.org/biocLite.R")
+biocLite() #update bioconductor install
+#biocLite("BiocUpgrade") #really update
+biocValid()  
+biocLite("pkgmaker")
+library(BiocInstaller)
+devtools::install_github('renozao/NMF@devel') #dev version NMF
+
+library(devtools)
+source("https://bioconductor.org/biocLite.R")
+biocLite("clusterExperiment", dependencies = TRUE) #2.0.2 June 2018
+library(clusterExperiment)
+packageVersion("clusterExperiment")
+
+library(clusterExperiment)
+packageVersion("clusterExperiment")
+
+colb <- c("dodgerblue", "purple", "green") #pal <- clusterExperiment::bigPalette
+cole <- c("blue","magenta")
+colRKC <- c("deepskyblue", "deeppink", "darkviolet", "gold", "chocolate4", "pink", "darkorange2", "chartreuse3", "slategray2", "firebrick3")
+
+############-----------load required data for plots: counts matrix, clusterExperiment object for heatmaps, cluster vector, qc data
+
+load("forGeneExpression_tSNEs.Rda") #save(sconeNorm, ce, vargenes, batch, expt, resolution, tsne_scone, scone50_cl, z_cl, qc, file="forGeneExpression_tSNEs.Rda")
+load("RCOB2AB5S_sconetSNE_ce_otherData.Rda")
+
+#pickBinary by Diya looks at avge expression per cluster and sets a threshold
+clusterMeans <- function (counts, clusterlabels) {
+  sapply(levels(clusterlabels), function(curr_cluster) {
+    counts_sub <- counts[, names(clusterlabels)[clusterlabels == curr_cluster]]
+    return(rowMeans(counts_sub))
+  })
+}
+
+#use this one
+source("https://bioconductor.org/biocLite.R")
+biocLite("dplyr")
+library(dplyr)
+clusterMeans <- function(counts, clusterlabels){
+  clusterlabels <- clusterlabels[colnames(counts)]
+  mat <- data.frame(t(counts),clusterlabels=clusterlabels)
+  mat <- mat %>% group_by(clusterlabels) %>% summarize_all(mean)
+  clmean <- t(mat[,-1])
+  colnames(clmean) <- unlist(mat[,1])
+  return(data.frame(clmean))
+   }
+clusterMeans(counts, clusterlabels)
+#counts <-cbind(c(1,2,3,4), 2*c(1,2,3,4), 3*c(1,2,3,4), 4*c(1,2,3,4))
+#rownames(counts) <- c("Trp63","Krt5","Hbegf", "Ascl1")
+#colnames(counts) <- c("sampleA","sampleB","sampleC","sampleD")
+#clusterlabels <- c("cl1","cl2","cl2","cl1")
+#names(clusterlabels) <- c("sampleA", "sampleD", "sampleC", "sampleB")
+
+## one kind of DE
+# clusterMeans(counts, clusterlabels) %>% arrange(desc(b)) %>% filter(a < 5) %>% top_n(2)
+
+## Including Plots
+
+plot(tsne_scone$Y, pch=19, cex = 0.5, col=colRKC[scone50_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0("t-SNE (sconeNorm PCA50), clustered by sconeNorm PCA50\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
+legend("bottomright", legend=levels(scone50_cl), fill=colRKC, cex=0.5)
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
