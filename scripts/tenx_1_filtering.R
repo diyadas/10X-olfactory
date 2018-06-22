@@ -71,7 +71,7 @@ rownames(se) <- rowData(se)$Symbol
 
 # Exploratory Data Analysis
 pdf(file = file.path(vizdir, pasteu(exptstr, "EDA_prefilt.pdf")),
-    length = 11, width = 8.5)
+    height = 11, width = 8.5)
 detectedgeneplot(se, "Pre-filtering\n") # function in helper script
 dev.off()
 
@@ -108,7 +108,7 @@ if (runQCmetrics) {
 }
 
 pdf(file = file.path(vizdir, pasteu(exptstr, "mitoribo_prefilt.pdf")),
-    length = 11, width = 8.5)
+    height = 11, width = 8.5)
 plot(qc$mito_pct, col = colb[batch], xlab = "cell index",
      main = "% mito (Mt*) genes")
 legend("topleft", legend = levels(batch), fill = colb, cex = 0.8)
@@ -127,7 +127,7 @@ print(paste("Percent total variance captured in first 10 expression PCs is",
 ))
 
 pdf(file = file.path(vizdir, pasteu(exptstr, "QCpca_prefilt.pdf")),
-    length = 11, width = 8.5)
+    height = 11, width = 8.5)
 screeplot(pca, type = "lines", npcs = 50, main = "Expression PCA screeplot")
 screeplot(qcpca, type = "lines", main = "QC-PCA screeplot")
 
