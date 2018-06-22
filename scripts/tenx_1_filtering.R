@@ -22,7 +22,12 @@ option_list <- list(
               help = "path to file containing housekeeping genes"),
   make_option("--posctrlfile", default = "../ref/oeRegPosCon.txt", 
               type = "character",
-              help = "path to file containing positive control genes")
+              help = "path to file containing positive control genes"),
+  make_option("--runQC", default = FALSE, type = "logical",
+  	      help = "whether to calculate QC metrics, will error if
+	      QC metrics have not previously been calculated"),
+  make_option("--fast", default = FALSE, type = "logical",
+  	      help = "whether to use fast (approximate) PCA")
   )
 opt <- parse_args(OptionParser(option_list = option_list))
 exptstr <- opt$expt
@@ -38,6 +43,7 @@ library(BiocParallel)
 register(MulticoreParam(workers = opt$ncores))
 library(cellrangerRkit)
 library(SummarizedExperiment)
+library(scone)
 library(scater)
 library(Rtsne)
 library(ggplot2)
@@ -76,9 +82,9 @@ detectedgeneplot(se, "Pre-filtering\n") # function in helper script
 dev.off()
 
 # ---- Calculate QC metrics and plot ----
-runQCmetrics <- FALSE
-fast <- FALSE
-if (runQCmetrics) {
+runQC <- opt$runQC
+fast <- opt$fast
+if (runQC) {
   se_simple <- assay(se)[rowSums(assay(se)) > 10, ]
   se_simple <- SUM_FN(se_simple)
   pca <- ifelse(fast, fastpca(log2(se_simple + 0.1)),
