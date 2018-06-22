@@ -92,10 +92,9 @@ if (runQC) {
   
   # Use scater package to calculate some quality control metrics.
   # only works with unique identifiers - Ensembl IDs,
-  # not gene names b/c some gene name duplication (65/28000)
-  sce <- SingleCellExperiment(countData = assay(se))
-  sce <- calculateQCMetrics(sce)
+  # not gene names b/c some gene name duplication (~65/28000)
   sce <- as(se, "SingleCellExperiment")
+  sce <- calculateQCMetrics(sce)
   
   # Calculate mitochondrial and ribosomal percentage in each sample
   ribo_idx <- grep("^Rpl|^Rps", rowData(se)$Symbol)
