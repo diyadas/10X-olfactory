@@ -103,8 +103,15 @@ if (runQC) {
   ribo_pct <- colSums(assay(se)[ribo_idx, ]) / colSums(assay(se)) * 100
   mito_pct <- colSums(assay(se)[mito_idx, ]) / colSums(assay(se)) * 100
   
-  qc <- as.matrix(data.frame(colData(sce)[, c(2, 4:8)], mito_pct = mito_pct, 
-                             ribo_pct = ribo_pct))
+  qc <- as.matrix(data.frame(colData(sce)[, c("total_features_by_counts", 
+     					      "total_counts",
+					      "log10_total_counts",
+					      "pct_counts_in_top_50_features",
+					      "pct_counts_in_top_100_features",
+					      "pct_counts_in_top_200_features",
+					      "log10_total_features")], 
+			     mito_pct = mito_pct, 
+                  	     ribo_pct = ribo_pct))
   qcpca <- prcomp(qc, scale. = TRUE)
   
   save(se, sce, qc, pca, qcpca,
