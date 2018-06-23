@@ -94,6 +94,7 @@ if (runQC) {
   # only works with unique identifiers - Ensembl IDs,
   # not gene names b/c some gene name duplication (~65/28000)
   sce <- as(se, "SingleCellExperiment")
+  rownames(sce) <- rowData(sce)$geneID
   sce <- calculateQCMetrics(sce)
   
   # Calculate mitochondrial and ribosomal percentage in each sample
