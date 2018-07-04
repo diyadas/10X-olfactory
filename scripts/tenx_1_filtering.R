@@ -48,6 +48,7 @@ library(scater)
 library(Rtsne)
 library(ggplot2)
 library(scales)
+library(clusterExperiment)
 
 # Source helper functions
 source("tenx_helper.R")
@@ -87,9 +88,11 @@ fast <- opt$fast
 if (runQC) {
   se_simple <- assay(se)[rowSums(assay(se)) > 10, ]
   se_simple <- SUM_FN(se_simple)
-  pca <- ifelse(fast, fastpca(log2(se_simple + 0.1)),
-                prcomp(t(se_simple), scale. = TRUE))
-  
+  if (fast){
+     pca <- fastpca(log2(se_simple + 0.1))
+  } else {
+     pca <- prcomp(t(log2(se_simple + 0.1)))
+  }
   # Use scater package to calculate some quality control metrics.
   # only works with unique identifiers - Ensembl IDs,
   # not gene names b/c some gene name duplication (~65/28000)
@@ -113,25 +116,19 @@ if (runQC) {
 			     mito_pct = mito_pct, 
                   	     ribo_pct = ribo_pct))
   qcpca <- prcomp(qc, scale. = TRUE)
-  
-  save(se, sce, qc, pca, qcpca,
-       file = file.path(outdir, pasteu(exptstr, "prefilt.Rda")))
-} else {
-  load(file.path(outdir, pasteu(exptstr, "prefilt.Rda")))
-}
-
-pdf(file = file.path(vizdir, pasteu(exptstr, "mitoribo_prefilt.pdf")),
+ 
+ pdf(file = file.path(vizdir, pasteu(exptstr, "mitoribo_prefilt.pdf")),
     height = 11, width = 8.5)
-plot(qc$mito_pct, col = colb[batch], xlab = "cell index",
+plot(qc[,"mito_pct"], col = colb[batch], xlab = "cell index",
      main = "% mito (Mt*) genes")
 legend("topleft", legend = levels(batch), fill = colb, cex = 0.8)
-boxplot(qc$mito_pct ~ colData(se)$batch, main = "percent mito genes",
+boxplot(qc[,"mito_pct"] ~ colData(se)$batch, main = "percent mito genes",
         col = colb, las = 2, cex.axis = 0.7)
 
-plot(qc$ribo_pct, col = colb[batch], xlab = "cell index", 
+plot(qc[,"ribo_pct"], col = colb[batch], xlab = "cell index", 
      main = "% ribo (Rpl*) genes")
 legend("topleft", legend = levels(batch), fill = colb, cex = 0.8)
-boxplot(qc$ribo_pct ~ colData(se)$batch, main = "percent ribo genes",
+boxplot(qc[,"ribo_pct"] ~ colData(se)$batch, main = "percent ribo genes",
         col = colb, las = 2, cex.axis = 0.7)
 dev.off()
 
@@ -164,6 +161,12 @@ for (feature in
   pcaggplot(fig_data, "QC metric PCA", feature)
 }
 dev.off()
+ 
+  save(se, sce, qc, pca, qcpca,
+       file = file.path(outdir, pasteu(exptstr, "prefilt.Rda")))
+} else {
+  load(file.path(outdir, pasteu(exptstr, "prefilt.Rda")))
+}
 
 # ---- Filtering ----
 # store QC metrics with SummarizedExperiment object
@@ -176,10 +179,10 @@ num_cells <- 0.25 * ncol(se)
 is_common <- rowSums(assay(se) >= num_reads) >= num_cells
 table(is_common)
 
-hk <- as.character(unlist(read.table(hkfile)))
+hk <- as.character(unlist(read.table(opt$hkfile)))
 hk <- intersect(hk, rowData(se)$Symbol)
 
-pdf(file = file.path(viz_dir, pasteu(exptstr, "msf_prefilt.pdf")),
+pdf(file = file.path(vizdir, pasteu(exptstr, "msf_prefilt.pdf")),
     title = "metric_sample_filtering")
 mfilt <- metric_sample_filter(
   assay(se),
@@ -230,7 +233,7 @@ batch <- colData(se_filtered)$batch
 expt <- colData(se_filtered)$expt
 
 # Check for batch effects prior to normalization
-pdf(file = file.path(viz_dir, pasteu(exptstr, "batchchk_prefilt.pdf")))
+pdf(file = file.path(vizdir, pasteu(exptstr, "batchchk_prefilt.pdf")))
 plot(pca$x, pch = 19, col = colb[colData(se)$batch], 
      main = "PCA Color-coded by batch")
 legend("topleft", legend = levels(batch), fill = colb, cex = 0.6)
