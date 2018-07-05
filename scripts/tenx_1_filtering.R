@@ -288,7 +288,7 @@ controlheatmaps("negcon_ruv", se_filtered)
 # Correlation of QC metrics with expression PCs for filtered data
 cors <- sapply(1:5, function(i) abs(cor(pca[, i], qc, method = "spearman")))
 bars <- data.frame(
-  AbsoluteCorrelation = cors,
+  AbsoluteCorrelation = as.vector(cors),
   QC = factor(rep(colnames(qc), 5), levels = colnames(qc)),
   Dimension = as.factor(rep(paste0("PC", 1:5), each = ncol(qc)))
 )
@@ -302,6 +302,6 @@ dev.off()
 
 # ---- Save output ----
 save(qc, pca, se_filtered, batch, expt,
-     file = file.path(outdir, pasteu(exptstr, "_se_filtered.Rda")))
+     file = file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
 save(counts_filtered, logcounts_filtered,
-     file = file.path(outdir, pasteu(exptstr, "_counts_filtered.Rda")))
+     file = file.path(outdir, pasteu(exptstr, "counts_filtered.Rda")))
