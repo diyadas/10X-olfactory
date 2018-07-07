@@ -111,8 +111,7 @@ if (runQC) {
 					      "log10_total_counts",
 					      "pct_counts_in_top_50_features",
 					      "pct_counts_in_top_100_features",
-					      "pct_counts_in_top_200_features",
-					      "log10_total_features")], 
+					      "pct_counts_in_top_200_features")], 
 			     mito_pct = mito_pct, 
                   	     ribo_pct = ribo_pct))
   qcpca <- prcomp(qc, scale. = TRUE)
@@ -155,8 +154,7 @@ ggplot(fig_data, aes(x = QPC1, y = QPC2, color = batch)) +
 for (feature in
      c("log10_total_counts", 
        "ribo_pct",
-       "mito_pct",
-       "log10_total_features")) {
+       "mito_pct")) {
   pcaggplot(fig_data, "Expression PCA", feature)
   pcaggplot(fig_data, "QC metric PCA", feature)
 }
@@ -222,7 +220,7 @@ dev.off()
 
 # ---- Final gene filtering: highly expressed in at least N cells ----
 num_reads <- quantile(assay(se)[assay(se) > 0])[4]
-num_cells <- 3
+num_cells <- 5
 is_quality <- rowSums(assay(se) >= num_reads) >= num_cells
 table(is_quality)
 se_filtered <- se[is_quality, filter_cell]
