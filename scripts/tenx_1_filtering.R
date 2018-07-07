@@ -63,7 +63,7 @@ expt_batch <- apply(exptinfo, 1, function(crexpt) {
 })
 expt_batch <- do.call(rbind, expt_batch)
 expt <- expt_batch$expt
-batch <- expt_batch$expt
+batch <- expt_batch$batch
 
 counts <- as.matrix(exprs(load_cellranger_matrix(file.path(crdir, opt$aggr))))
 
