@@ -1,5 +1,5 @@
 ---
-title: "Rebecca's OE Candidate Injurey Cue Signaling Pathway Analysis"
+title: "Rebecca's OE Candidate Injury Cue Signaling Pathway Analysis"
 author: "RebeccaKChance"
 date: "June 13, 2018"
 output: html_document
@@ -56,7 +56,10 @@ clusterMeans <- function (counts, clusterlabels) {
 source("https://bioconductor.org/biocLite.R")
 biocLite("dplyr")
 library(dplyr)
+
 clusterMeans <- function(counts, clusterlabels){
+ counts <- transform(tmp); colnames(counts) <- colnames(tmp)
+  clusterlabels <- primaryCluster(tmp)
   clusterlabels <- clusterlabels[colnames(counts)]
   mat <- data.frame(t(counts),clusterlabels=clusterlabels)
   mat <- mat %>% group_by(clusterlabels) %>% summarize_all(mean)
