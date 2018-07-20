@@ -25,9 +25,8 @@ ncores <- opt$ncores
 register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
-load(file.path(outdir, pasteu(exptstr, opt$method, "snn.Rda")))
-load(file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
-#load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
+load(file.path(datdir, pasteu(exptstr, opt$method, "snn.Rda")))
+load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
 
 clus.labels <- sort(clus.labels)
 batch <- batch[clus.labels]
