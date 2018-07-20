@@ -26,7 +26,11 @@ register(MulticoreParam(workers = opt$ncores))
 source("tenx_helper.R")
 
 load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
-if (method == "scone") mat <- get_normalized(scone_obj3, opt$normalization)
+if (method == "scone") {
+   mat <- get_normalized(scone_obj3, opt$normalization)
+   rm(scone_obj3)
+   gc()
+}
 seed <- 2782472
 cl <- clusterMany(mat, isCount = TRUE, reduceMethod = "PCA", nReducedDims = 30,
                   alphas = 0.1,
