@@ -4,7 +4,7 @@
 
 # Load command-line arguments
 library(scone)
-library(clusterExperiment)
+library(Seurat)
 library(BiocParallel)
 library(optparse)
 
@@ -28,7 +28,8 @@ source("tenx_helper.R")
 load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
 if (method == "scone") {
   mat <- get_normalized(scone_obj3, opt$normalization)
-  rm(scone_obj)
+  mat <- log2(mat + 1)
+  rm(scone_obj3)
 }
 seed <- 2782472
 
