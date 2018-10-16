@@ -45,7 +45,7 @@ breakv <- c(min(seu@data),
             seq(0, quantile(seu@data[seu@data > 0], .99, na.rm = TRUE), length = 50), 
             max(seu@data))
 
-pdf(file = file.path(vizdir, pasteu(exptstr, "marker", Sys.Date(), ".pdf")), 
+pdf(file = file.path(vizdir, pasteu(exptstr, "markerhm", method, opt$norm, Sys.Date(), ".pdf")), 
     width = 6, height = 5.5)
 plotHeatmap(seu@data[oe_markers, names(clus.labels)], clusterSamples = FALSE, clusterFeatures = FALSE, breaks = breakv, colData = data.frame(cluster = clus.labels, expt = expt, batch = batch), clusterLegend = list(cluster = bigPalette, expt = cole), annLegend = TRUE)
 dev.off()
