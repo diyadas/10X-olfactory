@@ -18,7 +18,7 @@ vizdir <- file.path("../output", exptstr, "viz")
 # Set up packages and parallel environment
 library(BiocParallel)
 register(MulticoreParam(workers = opt$ncores))
-library(scone)
+library(zinbwave)
 
 # Source helper functions
 source("tenx_helper.R")

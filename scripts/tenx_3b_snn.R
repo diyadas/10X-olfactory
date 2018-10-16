@@ -4,6 +4,7 @@
 
 # Load command-line arguments
 library(scone)
+library(zinbwave)
 library(Seurat)
 library(BiocParallel)
 library(optparse)
