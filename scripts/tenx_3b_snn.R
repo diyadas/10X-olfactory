@@ -1,6 +1,6 @@
 # Clustering of 10X data using SNN (Seurat)
 # Authors: Russell Fletcher, Diya Das, and Rebecca Chance
-# Last revised: Thu Jul 19 13:46:01 2018
+# Last revised: Mon Oct 15 18:16:05 2018
 
 # Load command-line arguments
 library(scone)
@@ -25,23 +25,37 @@ register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 
-load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
-if (method == "scone") {
-  mat <- get_normalized(scone_obj3, opt$normalization)
-  mat <- log2(mat + 1)
-  rm(scone_obj3)
+load(file.path(outdir, pasteu(exptstr, "scone", "data.Rda")))
+mat <- get_normalized(scone_obj3, opt$normalization)
+mat <- log2(mat + 1)
+rm(scone_obj3)
+
+if (method == "zinb"){
+  load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
 }
+
 seed <- 2782472
+resolution = 1
 
 seu <- CreateSeuratObject(raw.data = mat, min.cells = 1, min.genes = 1, 
                           project = exptstr)
-
+if (method == "scone"){
 seu <- ScaleData(seu)
 seu <- RunPCA(seu, seed.use = seed, pc.genes = rownames(seu@data))
-resolution = 1
 seu <- FindClusters(object = seu, reduction.type = "pca", 
                     dims.use = 1:20, #this should match K
                     resolution = 1, print.output = 0, save.SNN = TRUE)
+} else if (method == "zinb") {
+  seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", 
+                         slot = "cell.embeddings",
+                         new.data = reducedDim(zinbobj, "zinbwave"))
+  seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", slot = "key",
+                         new.data = "zinbwave")
+  seu <- FindClusters(object = seu, reduction.type = "zinbwave", 
+                      dims.use = 1:20, #this should match K
+                      resolution = resolution, print.output = 0, save.SNN = TRUE)
+}
+
 clus.labels <- seu@ident
 names(clus.labels) <- paste0(names(seu@ident))
 
