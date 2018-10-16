@@ -48,11 +48,11 @@ seu <- FindClusters(object = seu, reduction.type = "pca",
 } else if (method == "zinb") {
   seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", 
                          slot = "cell.embeddings",
-                         new.data = reducedDim(zinbobj, "zinbwave"))
+                         new.data = reducedDim(zinb_obj, "zinbwave"))
   seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", slot = "key",
                          new.data = "zinbwave")
   seu <- FindClusters(object = seu, reduction.type = "zinbwave", 
-                      dims.use = 1:20, #this should match K
+                      dims.use = 1:10, #this should match K
                       resolution = resolution, print.output = 0, save.SNN = TRUE)
 }
 
