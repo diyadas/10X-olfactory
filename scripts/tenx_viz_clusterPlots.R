@@ -7,10 +7,11 @@ library(scone)
 library(clusterExperiment)
 library(BiocParallel)
 library(optparse)
+library(Rtsne)
 
 option_list <- list(
   make_option("--expt", default = "", type = "character", help = "Experiment ID"),
-  make_option("--normalization", type = "character", help = "name of normalization"),
+  make_option("--norm", type = "character", help = "name of normalization"),
   make_option("--method", type = "character", help = "scone or zinb"),
   make_option("--ncores", default = "1", type = "double")
 )
@@ -27,7 +28,6 @@ register(MulticoreParam(workers = opt$ncores))
 source("tenx_helper.R")
 load(file.path(datdir, pasteu(exptstr, opt$method, "snn.Rda")))
 load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
-
 
 names(batch) <- colnames(seu@data)
 names(expt) <- colnames(seu@data)
@@ -57,7 +57,7 @@ rtsne_fx <- function(cmobj, clusters, ngenes = 500) {
   vars <- sort(vars, decreasing = TRUE)
   var_data <- seu@data[names(vars)[1:ngenes],]
   tsne_data <- Rtsne(t(var_data[,names(clusters)]), 
-                     perplexity = 10, max_iter = 1000)
+                     perplexity = 10, max_iter = 10000)
   return(tsne_data)
 }
 
