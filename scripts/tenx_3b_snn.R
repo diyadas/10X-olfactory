@@ -36,7 +36,7 @@ if (method == "zinb"){
 }
 
 seed <- 2782472
-resolution = 1
+resolution <- seq(0, 2, 0.2)
 
 seu <- CreateSeuratObject(raw.data = mat, min.cells = 1, min.genes = 1, 
                           project = exptstr)
@@ -45,7 +45,7 @@ seu <- ScaleData(seu)
 seu <- RunPCA(seu, seed.use = seed, pc.genes = rownames(seu@data))
 seu <- FindClusters(object = seu, reduction.type = "pca", 
                     dims.use = 1:20, #this should match K
-                    resolution = 1, print.output = 0, save.SNN = TRUE)
+                    resolution = resolution, print.output = 0, save.SNN = TRUE)
 } else if (method == "zinb") {
   seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", 
                          slot = "cell.embeddings",
@@ -53,7 +53,7 @@ seu <- FindClusters(object = seu, reduction.type = "pca",
   seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", slot = "key",
                          new.data = "zinbwave")
   seu <- FindClusters(object = seu, reduction.type = "zinbwave", 
-                      dims.use = 1:10, #this should match K
+                      dims.use = 1:20, #this should match K
                       resolution = resolution, print.output = 0, save.SNN = TRUE)
 }
 
