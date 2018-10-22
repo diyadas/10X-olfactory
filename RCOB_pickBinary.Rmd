@@ -76,8 +76,28 @@ return(DEgenes)
 names(finalmarker) <- levels(de_onevall$ContrastName)
 
 head(finalmarker$Cl01[1:50])
-# cluster averages 
 
+#finding clusterID based on gene expression
+#for quickly comparing cluster ID between datasets if have a known marker gene
+
+message(paste(grep("Crispld2", de_onevall$Feature), collapse = ", "))
+message(paste(de_onevall$ContrastName[c(15, 6458, 12361, 16397, 32221, 58980)], collapse = ", "))
+crispld2ones<-c("Cl01", "Cl03", "Cl05","Cl07", "Cl22", "Cl45")
+
+Cplx3common<-intersect(unlist(finalmarker$Cl14), unlist(finalmarker$Cl35))
+Cplx3common<-intersect(Cplx3common, unlist(finalmarker$Cl12))
+#not 2,3, 5 have 24 (2 and 3 v. common ~300) #17 good pick also has 11
+grep("Cplx3", Cplx3common)
+
+clus_outEPL<- paste0(de_onevall$ContrastName[c(14, 3758, 6491, 10766, 13074, 14250, 16575, 18018, 21616, 21916, 22273, 22626, 25652, 25928, 27360, 27950, 31971, 37677, 39313, 44976, 46008, 47747, 53406, 54788, 62600, 63499, 64100)])
+
+  for (i in 1:length(clus_outEPL[])) {
+ clus_DE<-unlist(finalmarker[paste0(clus_outEPL[i])], use.names=FALSE)
+message(paste(grep("Cplx3", clus_DE), collapse = ", "))
+  }
+
+
+# cluster averages 
 M24_DE_avge <- as.data.frame(cols_all[m24s,])
 head(M24_DE_avge)
 typeof(M24_DE_avge)
@@ -126,3 +146,5 @@ dev.off()
 }
 
 ```{r pressure, echo=FALSE}
+plot(pressure)
+```
