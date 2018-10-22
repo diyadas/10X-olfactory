@@ -1,6 +1,6 @@
 ---
-title: "Rebecca's OE Candidate Injury Cue Signaling Pathway Analysis"
-author: "RebeccaKChance"
+title: "Rebecca's OE Candidate Injurey Cue Signaling Pathway Analysis"
+author: "RebeccaKChance" "Diya Das"
 date: "June 13, 2018"
 output: html_document
 ---
@@ -44,46 +44,85 @@ colRKC <- c("deepskyblue", "deeppink", "darkviolet", "gold", "chocolate4", "pink
 load("forGeneExpression_tSNEs.Rda") #save(sconeNorm, ce, vargenes, batch, expt, resolution, tsne_scone, scone50_cl, z_cl, qc, file="forGeneExpression_tSNEs.Rda")
 load("RCOB2AB5S_sconetSNE_ce_otherData.Rda")
 
-#pickBinary by Diya looks at avge expression per cluster and sets a threshold
-clusterMeans <- function (counts, clusterlabels) {
-  sapply(levels(clusterlabels), function(curr_cluster) {
-    counts_sub <- counts[, names(clusterlabels)[clusterlabels == curr_cluster]]
-    return(rowMeans(counts_sub))
-  })
+
+############ pickBinary ####################
+#Oct4.18 DD made our best version yet:
+
+cols_all <-apply(transformData(tmp),1, function(x) tapply(x, primaryCluster(tmp), mean))
+cols_all <- t(cols_all) #matrix with average exp of genes (row) by cluster (column)
+
+# dim(cols_all) #9631 by 51
+cols_all <- cols_all[,2:51] #check cluster number here
+# head(cols_all)
+# head(de_onevall$ContrastName)
+ClusLabels <-levels(de_onevall$ContrastName)
+colnames(cols_all) <- ClusLabels
+# head(cols_all)
+# #head(cols_all[Cl24,])
+# m24s<-m24_DE$Feature
+# head(cols_all[m24s,])
+
+
+finalmarker <- lapply(levels(de_onevall$ContrastName), function(contrast){
+DEgenes <- de_onevall %>% filter(ContrastName==contrast) %>% 
+  filter(logFC > 0) %>%
+  arrange(desc(logFC)) %>% 
+  select(Feature) %>% unlist()
+sub_mat <- cols_all[DEgenes,setdiff(colnames(cols_all), contrast)]
+DEgenes <- rownames(sub_mat)[apply(sub_mat, 1, function(x) all(x < 1.8))]
+#if (length(DEgenes == 0)) DEgenes <- NA
+return(DEgenes)
+})
+names(finalmarker) <- levels(de_onevall$ContrastName)
+
+head(finalmarker$Cl01[1:50])
+# cluster averages 
+
+M24_DE_avge <- as.data.frame(cols_all[m24s,])
+head(M24_DE_avge)
+typeof(M24_DE_avge)
+dim(M24_DE_avge)
+#newdata <- subset(mydata, sex=="m" & age > 25, select=weight:income)
+M24_DE_avge<- M24_DE_avge[order(M24_DE_avge[,24], decreasing=TRUE),]
+
+M24_DE_avge24<-data.frame()
+M24_DE_avge24$gene <-M24_DE_avge[,1]
+M24_DE_avge24$avge <-M24_DE_avge[,24]
+head(M24_DE_avge24)
+
+M24_DE_avge$AvgExp <- (cols_all[,24])
+head(M24_DE_avge)
+dim(M24_DE_avge)
+colnames(M24_DE_avge[,1])<-  "AvgExp"
+M24_DE_avge<- M24_DE_avge[order(M24_DE_avge[,24], decreasing=TRUE),]
+typeof(M24_DE_avge)
+head(M24_DE_avge)
+dim(M24_DE_avge)
+  
+a <- list() #make a list
+a$M1 <- m1_DE #add one cluster's DE list via data object character string
+a$M39 <- m39_DE
+a$M40 <- c("Cgnl1", "Tubb6")
+
+#MOB MCL is Cl05 Cl08 Cl24 Cl45
+clus_MOBmcl<- c("Cl05", "Cl08", "Cl24", "Cl45")
+
+
+## then loop a heatmap pdf
+for (i in 1:length(clus_outEPL[])) {
+ clus_DE<-unlist(finalmarker[paste0(clus_outEPL[i])], use.names=FALSE)
+ shortlist_clus_DE<-clus_DE[1:50]
+  
+ NMF::nmf.options(grid.patch=TRUE)
+ pdf(paste0("output/viz/RCOB2AB5S_heatmap_rsec_1vall_",clus_outEPL[i],".pdf"), height=8.5, width=11)
+ plotHeatmap(tmp, clusterSamplesData="dendrogramValue",
+            whichClusters="primaryCluster", 
+            clusterFeaturesData=rownames(tmp)[rownames(tmp) %in% shortlist_clus_DE],  fontsize=8,
+            main=paste0("RCOB2AB5S_heatmap_1vall_rsec_shortlist_",clus_outEPL[i],"_DE"), breaks=.99 ,  
+            labCol=rep("",ncol(tmp)) )
+dev.off()
+
+
 }
 
-#use this one
-source("https://bioconductor.org/biocLite.R")
-biocLite("dplyr")
-library(dplyr)
-
-clusterMeans <- function(counts, clusterlabels){
- counts <- transform(tmp); colnames(counts) <- colnames(tmp)
-  clusterlabels <- primaryCluster(tmp)
-  clusterlabels <- clusterlabels[colnames(counts)]
-  mat <- data.frame(t(counts),clusterlabels=clusterlabels)
-  mat <- mat %>% group_by(clusterlabels) %>% summarize_all(mean)
-  clmean <- t(mat[,-1])
-  colnames(clmean) <- unlist(mat[,1])
-  return(data.frame(clmean))
-   }
-clusterMeans(counts, clusterlabels)
-#counts <-cbind(c(1,2,3,4), 2*c(1,2,3,4), 3*c(1,2,3,4), 4*c(1,2,3,4))
-#rownames(counts) <- c("Trp63","Krt5","Hbegf", "Ascl1")
-#colnames(counts) <- c("sampleA","sampleB","sampleC","sampleD")
-#clusterlabels <- c("cl1","cl2","cl2","cl1")
-#names(clusterlabels) <- c("sampleA", "sampleD", "sampleC", "sampleB")
-
-## one kind of DE
-# clusterMeans(counts, clusterlabels) %>% arrange(desc(b)) %>% filter(a < 5) %>% top_n(2)
-
-## Including Plots
-
-plot(tsne_scone$Y, pch=19, cex = 0.5, col=colRKC[scone50_cl], xlab="TSNE 1", ylab="TSNE 2", main=paste0("t-SNE (sconeNorm PCA50), clustered by sconeNorm PCA50\n resolution = ", resolution, ", varGenes = ", length(vargenes)))
-legend("bottomright", legend=levels(scone50_cl), fill=colRKC, cex=0.5)
-
 ```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
