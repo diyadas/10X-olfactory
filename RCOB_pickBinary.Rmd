@@ -2,7 +2,15 @@
 title: "Rebecca's OB PN finding binary Biomarkers between data iterations"
 author: "RebeccaKChance" "Diya Das"
 date: "June 13, 2018"
-output: html_document
+utput:
+  html_document:
+    fig_height: 7
+    fig_width: 7
+    toc: yes
+    code_folding: hide
+    toc_float: yes
+editor_options:
+  chunk_output_type: console
 ---
 ```{r options, include=FALSE}
 knitr::opts_chunk$set(cache=TRUE, error=FALSE, message=FALSE, warning=FALSE)
@@ -13,6 +21,11 @@ setwd("C:/RCOB")
 install.packages('installr')
 library("installr")
 installr()  #remove old Rs control panel programs R so libraries aren't confused
+# installing/loading the latest installr package:
+install.packages("installr"); library(installr) # install+load installr
+ 
+updateR() # updating R.
+
 
 library(devtools)
 assignInNamespace("version_info", c(devtools:::version_info, list("3.5" = list(version_min = "3.3.0", version_max = "99.99.99", path = "bin"))), "devtools")
@@ -20,6 +33,7 @@ find_rtools() # is TRUE now
 
 source("https://bioconductor.org/biocLite.R")
 biocLite() #update bioconductor install
+BiocManager::install
 #biocLite("BiocUpgrade") #really update
 biocValid()  
 biocLite("pkgmaker")
@@ -27,27 +41,37 @@ library(BiocInstaller)
 devtools::install_github('renozao/NMF@devel') #dev version NMF
 
 library(devtools)
+install.packages("stringi",type="win.binary") #if problems remove old documents>R>3.5>lib
+library(stringi)
+packageVersion("stringi")
+library(MASS, mgcv)
 source("https://bioconductor.org/biocLite.R")
-biocLite("clusterExperiment", dependencies = TRUE) #2.0.2 June 2018
+BiocManager::install("clusterExperiment", dependencies = TRUE) #2.0.2 June 2018 #2.1.6 Oct 2018
 library(clusterExperiment)
 packageVersion("clusterExperiment")
-
-library(clusterExperiment)
-packageVersion("clusterExperiment")
-
+```
+#Load clusters and colors
+```{r readin}
 colb <- c("dodgerblue", "purple", "green") #pal <- clusterExperiment::bigPalette
 cole <- c("blue","magenta")
 colRKC <- c("deepskyblue", "deeppink", "darkviolet", "gold", "chocolate4", "pink", "darkorange2", "chartreuse3", "slategray2", "firebrick3")
 
 ############-----------load required data for plots: counts matrix, clusterExperiment object for heatmaps, cluster vector, qc data
-
+library(readr)
 load("forGeneExpression_tSNEs.Rda") #save(sconeNorm, ce, vargenes, batch, expt, resolution, tsne_scone, scone50_cl, z_cl, qc, file="forGeneExpression_tSNEs.Rda")
 load("RCOB2AB5S_sconetSNE_ce_otherData.Rda")
+load("RCOB2AB5S_sconeClusterMany.Rda") # from RSEC May 26 2018(from RCOB2AB5S_cluster.R)  #cl
 
+```
 
+Now we have formalized into automated code what I did manually for two years by screening heatmaps
+
+#Oct4.18 DD made our best version yet:{r eda}
 ############ pickBinary ####################
-#Oct4.18 DD made our best version yet:
 
+```
+
+```{r pickBinary}
 cols_all <-apply(transformData(tmp),1, function(x) tapply(x, primaryCluster(tmp), mean))
 cols_all <- t(cols_all) #matrix with average exp of genes (row) by cluster (column)
 
@@ -76,13 +100,20 @@ return(DEgenes)
 names(finalmarker) <- levels(de_onevall$ContrastName)
 
 head(finalmarker$Cl01[1:50])
+```
+# Lock it down
+```{r save_filtered}
+save(finalmarker, file="RCOB2AB5S_finalMarker.rda")
+```
+
 
 #finding clusterID based on gene expression
 #for quickly comparing cluster ID between datasets if have a known marker gene
 
-message(paste(grep("Crispld2", de_onevall$Feature), collapse = ", "))
-message(paste(de_onevall$ContrastName[c(15, 6458, 12361, 16397, 32221, 58980)], collapse = ", "))
-crispld2ones<-c("Cl01", "Cl03", "Cl05","Cl07", "Cl22", "Cl45")
+```{r mappingKnownMarkers}
+message(paste(grep("Rhoc", finalmarker), collapse = ", ")) 
+paste(finalmarker[c(2,4,25)])
+message(paste(finalmarker[c(2,4,25)], collapse = ", "))
 
 Cplx3common<-intersect(unlist(finalmarker$Cl14), unlist(finalmarker$Cl35))
 Cplx3common<-intersect(Cplx3common, unlist(finalmarker$Cl12))
@@ -126,9 +157,10 @@ a$M40 <- c("Cgnl1", "Tubb6")
 
 #MOB MCL is Cl05 Cl08 Cl24 Cl45
 clus_MOBmcl<- c("Cl05", "Cl08", "Cl24", "Cl45")
-
+```
 
 ## then loop a heatmap pdf
+```{r loopHeatmap}
 for (i in 1:length(clus_outEPL[])) {
  clus_DE<-unlist(finalmarker[paste0(clus_outEPL[i])], use.names=FALSE)
  shortlist_clus_DE<-clus_DE[1:50]
@@ -145,6 +177,10 @@ dev.off()
 
 }
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
 ```
