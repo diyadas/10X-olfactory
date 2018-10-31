@@ -36,7 +36,7 @@ if (method == "zinb"){
 }
 
 seed <- 2782472
-resolution <- seq(0, 2, 0.2)
+resolution <- seq(0, 10, 0.5)
 
 seu <- CreateSeuratObject(raw.data = mat, min.cells = 1, min.genes = 1, 
                           project = exptstr)
