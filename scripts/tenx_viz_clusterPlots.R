@@ -62,6 +62,8 @@ genes.use <- names(vars)[1:ngenes]
 seu <- RunTSNE(seu, reduction.use = "pca", dims.use = 1:50,
   genes.use = genes.use, seed.use = seed, tsne.method = "Rtsne", perplexity = 10, max_iter = 10000,
   dim.embed = 2, reduction.name = "tsne")
+
+save(seu, file.path(datdir, pasteu(exptstr, opt$method, "snn.Rda")))
 }
 
 pdf(file = file.path(vizdir, pasteu(exptstr, "tsne", "clus", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
