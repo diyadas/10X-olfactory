@@ -8,6 +8,7 @@ library(clusterExperiment)
 library(BiocParallel)
 library(optparse)
 library(Rtsne)
+library(Seurat)
 
 option_list <- list(
   make_option("--expt", default = "", type = "character", help = "Experiment ID"),
@@ -53,7 +54,7 @@ dev.off()
 # t-SNE colored by cluster and time point
 
 
-if (is.null(seu@dr$tsne@cell.embeddings)){
+if (is.null(seu@dr$tsne)){
 ngenes = 500
 vars <- apply(seu@data, 1, var)
 vars <- sort(vars, decreasing = TRUE)
