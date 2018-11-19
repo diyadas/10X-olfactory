@@ -177,7 +177,12 @@ num_cells <- 0.25 * ncol(se)
 is_common <- rowSums(assay(se) >= num_reads) >= num_cells
 table(is_common)
 
+if (opt$hkfile == "hkpackage"){
+data("housekeeping")
+hk <- lettercase::str_ucfirst(tolower(unlist(housekeeping)))
+} else { 
 hk <- as.character(unlist(read.table(opt$hkfile)))
+}
 hk <- intersect(hk, rowData(se)$Symbol)
 
 pdf(file = file.path(vizdir, pasteu(exptstr, "msf_prefilt.pdf")),
