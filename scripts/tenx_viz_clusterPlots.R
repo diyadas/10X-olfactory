@@ -27,13 +27,13 @@ ncores <- opt$ncores
 register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
-load(file.path(datdir, pasteu(exptstr, opt$method, "snn.Rda")))
+load(file.path(datdir, pasteu(exptstr, method, "snn.Rda")))
 load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
 
 metadata <- data.frame(seu@meta.data, expt = expt, batch = batch,  
 	    	      samples = colnames(seu@data), row.names = "samples")
 metadata <- metadata[with(metadata, order(res.0.5, expt, batch)),]
-metadata <- metadata[, c('res.0.5', 'expt', 'batch')]
+metadata <- metadata[,c(grep('^res|expt|batch', colnames(metadata)))]
 
 seed <- 2782472
 
@@ -48,7 +48,8 @@ breakv <- unique(breakv)
 pdf(file = file.path(vizdir, pasteu(exptstr, "markerhm", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")), 
     width = 6, height = 5.5)
 plotHeatmap(seu@data[oe_markers, rownames(metadata)], clusterSamples = FALSE, clusterFeatures = FALSE, breaks = breakv, colData = metadata, 
-				 clusterLegend = list(res.0.5 = bigPalette, expt = cole, batch = bigPalette), annLegend = TRUE)
+				 clusterLegend = list(res.0.5 = bigPalette, expt = cole, batch = bigPalette), annLegend = TRUE,
+				 overRideClusterLimit = TRUE)
 dev.off()
 
 # t-SNE colored by cluster and time point
