@@ -14,12 +14,13 @@ opt <- parse_args(OptionParser(option_list = option_list))
 exptstr <- opt$expt
 outdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz")
+print(paste("Using ", opt$ncores, "cores"))
 
 # Set up packages and parallel environment
 library(BiocParallel)
 register(MulticoreParam(workers = opt$ncores))
 library(zinbwave)
-
+library(Rtsne)
 # Source helper functions
 source("tenx_helper.R")
 
@@ -29,16 +30,14 @@ vars <- rowVars(logfiltCounts)
 names(vars) <- rownames(se_filtered)
 vars <- sort(vars, decreasing = TRUE)
 
-zinb <- zinbFit(se_filtered[names(vars)[1:1000],], X = "~ log10_total_counts + pct_counts_top_500_features + ribo_pct", K = 20, epsilon = 1000)
-zinbparams <- "zinbFit(se_filtered[names(vars)[1:1000],], X = '~ log10_total_counts + pct_counts_top_500_features + ribo_pct', K = 20, epsilon = 1000)"
+zinb <- zinbFit(se_filtered[names(vars)[1:1000],], X = "~ log10_total_counts + pct_counts_in_top_200_features + ribo_pct", K = 20, epsilon = 1000)
+zinbparams <- "zinbFit(se_filtered[names(vars)[1:1000],], X = '~ log10_total_counts + pct_counts_in_top_200_features + ribo_pct', K = 20, epsilon = 1000)"
 save(zinb, zinbparams, file = file.path(outdir, paste0(exptstr,"_zinb.Rda")))
 
 W <- getW(zinb)
 d <- dist(W)
-tsne_zinb <- Rtsne(d, is_distance = TRUE, pca = FALSE, max_iter=5000)
 
 save(W, zinbparams, file = file.path(outdir, pasteu(exptstr, "zinbW", Sys.Date(), ".Rda")))
-save(tsne_zinb, zinbparams, file = file.path(outdir, pasteu(exptstr, "tsne_zinb", Sys.Date(), ".Rda")))
 
 zinb_obj <- zinbwave(se_filtered[names(vars)[1:1000],], fitted_model = zinb, K = 20, epsilon = 1000)
 save(zinb_obj, zinbparams,
