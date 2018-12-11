@@ -3,8 +3,12 @@ colb <- c("dodgerblue3", "darkviolet", "goldenrod", "chartreuse3", "cadetblue2",
 cole <- c("cornflowerblue", "darkgoldenrod", "darkorchid", "darkorange2", "deeppink3", "cadetblue1", "azure4", "darkslateblue", "darkolivegreen1", "antiquewhite2")
 
 pasteu <- function(...) paste(..., sep = "_")
+pasteu0 <- function(...){
+  tmp <- pasteu(...)
+  stringi::stri_replace_last_fixed(tmp, "_.", ".")
+}
 
-fastpca <- function(expr, scale=FALSE) {
+fastpca <- function(expr, scale = FALSE) {
   k <- 50
   svd_raw <- rARPACK::svds(scale(t(expr), center = TRUE, scale = scale), 
                            k = k, nu = k, nv = 0)
@@ -12,7 +16,7 @@ fastpca <- function(expr, scale=FALSE) {
   return(pc_raw)
 }
 
-detectedgeneplot <- function(se, plot_title=""){
+detectedgeneplot <- function(se, plot_title = ""){
   hist(colSums(assay(se)), breaks = 30,
     xlab = 'Number of UMI',
     main = paste(plot_title, "Number of UMI per sample"))
