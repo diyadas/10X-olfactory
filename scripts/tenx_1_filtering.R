@@ -27,13 +27,14 @@ option_list <- list(
   	      help = "whether to calculate QC metrics, will error if
 	      QC metrics have not previously been calculated"),
   make_option("--fast", default = FALSE, type = "logical",
-  	      help = "whether to use fast (approximate) PCA")
+  	      help = "whether to use fast (approximate) PCA"),
+  make_option("--exclude", default=NULL, type="character", help="name for excluded samples, if given")
   )
 opt <- parse_args(OptionParser(option_list = option_list))
 exptstr <- opt$expt
 outdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz", "prenormalization")
-crdir <- file.path("../output", exptstr, "cr")
+crdir <- file.path("../output", exptstr, "crcount")
 exptinfo <- read.csv(file.path("../output", exptstr, opt$exptinfo),
                      stringsAsFactors = FALSE)
 system(paste("mkdir -p", c(outdir, vizdir)))
@@ -69,6 +70,27 @@ counts <- as.matrix(exprs(load_cellranger_matrix(file.path(crdir, opt$aggr))))
 
 se <- SummarizedExperiment(list(counts = counts), 
                            colData = data.frame(batch = batch, expt = expt))
+excluded_samples_list <- NULL
+if (!is.null(opt$exclude)){
+  excluded_samples_list <<- load(paste0("../ref/",expt_str,"_",opt$exclude,"_exclude.Rda"))
+  message("using sample to exclude list")
+}
+
+message(paste("Dimensions:", dim(se)[1], "genes,", dim(se)[2], "samples"))
+
+# Exclude cells that are known to be contaminants
+if(length(excluded_samples_list) > 0){
+  cellIDsToExclude=vector()
+  for (i in seq_along(excluded_samples_list)){
+    print(excluded_samples_list[i])
+    cellIDsToExclude <- append(cellIDsToExclude,get(excluded_samples_list[i]))
+    print(length(seqIDsToExclude))
+  }
+  desiredCells <- !(colnames(se) %in% seqIDsToExclude)
+  se <<- se[, desiredCells]
+}
+message(paste("Dimensions after dropping contaminants:", dim(se)[1], "genes,", dim(se)[2], "samples"))
+
 genes <- read.table(file = file.path(crdir, opt$aggr, 
                                      "outs/filtered_gene_bc_matrices_mex",
                                      opt$annotation, "genes.tsv"))
@@ -111,7 +133,8 @@ if (runQC) {
 					      "log10_total_counts",
 					      "pct_counts_in_top_50_features",
 					      "pct_counts_in_top_100_features",
-					      "pct_counts_in_top_200_features")], 
+					      "pct_counts_in_top_200_features",
+					      "pct_counts_in_top_500_features")], 
 			     mito_pct = mito_pct, 
                   	     ribo_pct = ribo_pct))
   qcpca <- prcomp(qc, scale. = TRUE)
@@ -277,7 +300,7 @@ logcounts_filtered <- log2(counts_filtered + 1)
 controlheatmaps <- function(controllist, se_filtered){
   pdf(file = file.path(vizdir, pasteu(exptstr, controllist, "heatmap.pdf")))
   plotHeatmap(logcounts_filtered[rowData(se_filtered)[[controllist]], ],
-              sampleData = data.frame(expt = colData(se_filtered)$expt, 
+              colData = data.frame(expt = colData(se_filtered)$expt, 
                                       batch = colData(se_filtered)$batch),
               clusterLegend = list(expt = cole, batch = colb),
               main = paste(toupper(controllist), "after filtering"), 
