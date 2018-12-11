@@ -67,8 +67,11 @@ if (opt$subsample) {
   scone_ranks <- sort(rowMeans(
     sapply(sub_ranks, function(x) x[[2]][names(sub_ranks[[1]][[2]])])), 
     decreasing = TRUE)
-  scone_obj@scone_params <- scone_params@scone_params[names(scone_ranks)[1:6],] 
-  save(scone_obj, 
+  scone_scores <- lapply(sub_ranks, function(x) x[[1]][rownames(sub_ranks[[1]][[1]]),])
+  scone_scores_mean <- Reduce("+",scone_scores)/length(scone_scores)
+  scone_scores_mean <- scone_scores_mean[names(scone_ranks),]  
+  scone_obj@scone_params <- scone_params@scone_params[names(scone_ranks)[1:8],] 
+  save(scone_obj, scone_ranks, scone_scores, scone_scores_mean,
        file = file.path(outdir, pasteu(exptstr, "scone_eval_select.Rda")))
 } else {
   print("Running scone without subsampling")
