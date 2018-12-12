@@ -8,3 +8,5 @@ scripts/*.sh.*
 scripts/*.Rout
 local/*
 output/*
+crscripts/Rbp4A/*
+crscripts/Rbp4B/*
