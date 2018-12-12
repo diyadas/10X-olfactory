@@ -10,3 +10,5 @@ local/*
 output/*
 crscripts/Rbp4A/*
 crscripts/Rbp4B/*
+crscripts/*.sh.*
+crscripts/*.Rout
