@@ -22,6 +22,9 @@ method <- opt$method
 outdir <- file.path("../output", exptstr, "data")
 ncores <- opt$ncores
 
+print(exptstr)
+print(method)
+print(opt$normalization)
 print(paste("This job is using", ncores, "cores of a node."))
 
 register(MulticoreParam(workers = opt$ncores))
@@ -32,10 +35,10 @@ source("tenx_helper.R")
 load(file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
 samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
 
-load(file.path(outdir, pasteu(exptstr, "scone", "data.Rda")))
-mat <- get_normalized(scone_obj3, opt$normalization)
+load(file.path(outdir, pasteu(exptstr, "scone", opt$normalization, "data.Rda")))
+mat <- get_normalized(scone_obj, opt$normalization)
 mat <- log2(mat + 1)
-rm(scone_obj3)
+rm(scone_obj)
 
 if (method == "zinb"){
   load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
@@ -69,5 +72,5 @@ clus.labels <- seu@ident
 names(clus.labels) <- paste0(names(seu@ident))
 
 save(seu, clus.labels, file = file.path(outdir, 
-	  	       	      		pasteu(exptstr, opt$method, opt$normalization, "snn", 
+	  	       	      		pasteu0(exptstr, opt$method, opt$normalization, "snn", 
 					       format(Sys.time(), "%Y%m%d_%H%M%S") ,".Rda")))
