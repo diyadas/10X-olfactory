@@ -30,15 +30,15 @@ vars <- rowVars(logfiltCounts)
 names(vars) <- rownames(se_filtered)
 vars <- sort(vars, decreasing = TRUE)
 
-zinb <- zinbFit(se_filtered[names(vars)[1:1000],], X = "~ log10_total_counts + pct_counts_in_top_200_features + ribo_pct", K = 20, epsilon = 1000)
-zinbparams <- "zinbFit(se_filtered[names(vars)[1:1000],], X = '~ log10_total_counts + pct_counts_in_top_200_features + ribo_pct', K = 20, epsilon = 1000)"
-save(zinb, zinbparams, file = file.path(outdir, paste0(exptstr,"_zinb.Rda")))
+zinb <- zinbFit(se_filtered[names(vars)[1:1000],], X = "~ log10_total_counts + pct_counts_in_top_500_features + ribo_pct", K = 20, epsilon = 1000)
+zinbparams <- "zinbFit(se_filtered[names(vars)[1:1000],], X = '~ log10_total_counts + pct_counts_in_top_500_features + ribo_pct', K = 20, epsilon = 1000)"
+save(zinb, zinbparams, file = file.path(outdir, pasteu(exptstr,"zinb.Rda")))
 
 W <- getW(zinb)
 d <- dist(W)
 
-save(W, zinbparams, file = file.path(outdir, pasteu(exptstr, "zinbW", Sys.Date(), ".Rda")))
+save(W, zinbparams, file = file.path(outdir, pasteu0(exptstr, "zinbW", format(Sys.time(), "%Y%m%d_%H%M%S"), ".Rda")))
 
 zinb_obj <- zinbwave(se_filtered[names(vars)[1:1000],], fitted_model = zinb, K = 20, epsilon = 1000)
-save(zinb_obj, zinbparams,
+save(zinb_obj, zinbparams, zinb, 
        file = file.path(outdir, pasteu(exptstr, "zinb.Rda")))
