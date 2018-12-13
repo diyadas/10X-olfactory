@@ -72,7 +72,7 @@ se <- SummarizedExperiment(list(counts = counts),
                            colData = data.frame(batch = batch, expt = expt))
 excluded_samples_list <- NULL
 if (!is.null(opt$exclude)){
-  excluded_samples_list <<- load(paste0("../ref/",expt_str,"_",opt$exclude,"_exclude.Rda"))
+  excluded_samples_list <<- load(paste0("../ref/",exptstr,"_",opt$exclude,"_exclude.Rda"))
   message("using sample to exclude list")
 }
 
@@ -84,9 +84,9 @@ if(length(excluded_samples_list) > 0){
   for (i in seq_along(excluded_samples_list)){
     print(excluded_samples_list[i])
     cellIDsToExclude <- append(cellIDsToExclude,get(excluded_samples_list[i]))
-    print(length(seqIDsToExclude))
+    print(length(cellIDsToExclude))
   }
-  desiredCells <- !(colnames(se) %in% seqIDsToExclude)
+  desiredCells <- !(colnames(se) %in% cellIDsToExclude)
   se <<- se[, desiredCells]
 }
 message(paste("Dimensions after dropping contaminants:", dim(se)[1], "genes,", dim(se)[2], "samples"))
