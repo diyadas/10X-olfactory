@@ -65,7 +65,6 @@ expt_batch <- apply(exptinfo, 1, function(crexpt) {
 expt_batch <- do.call(rbind, expt_batch)
 expt <- expt_batch$expt
 batch <- expt_batch$batch
-
 counts <- as.matrix(exprs(load_cellranger_matrix(file.path(crdir, opt$aggr))))
 
 se <- SummarizedExperiment(list(counts = counts), 
@@ -141,15 +140,15 @@ if (runQC) {
  
  pdf(file = file.path(vizdir, pasteu(exptstr, "mitoribo_prefilt.pdf")),
     height = 11, width = 8.5)
-plot(qc[,"mito_pct"], col = colb[batch], xlab = "cell index",
+plot(qc[,"mito_pct"], col = colb[colData(se)$batch], xlab = "cell index",
      main = "% mito (Mt*) genes")
-legend("topleft", legend = levels(batch), fill = colb, cex = 0.8)
+legend("topleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.8)
 boxplot(qc[,"mito_pct"] ~ colData(se)$batch, main = "percent mito genes",
         col = colb, las = 2, cex.axis = 0.7)
 
-plot(qc[,"ribo_pct"], col = colb[batch], xlab = "cell index", 
+plot(qc[,"ribo_pct"], col = colb[colData(se)$batch], xlab = "cell index", 
      main = "% ribo (Rpl*) genes")
-legend("topleft", legend = levels(batch), fill = colb, cex = 0.8)
+legend("topleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.8)
 boxplot(qc[,"ribo_pct"] ~ colData(se)$batch, main = "percent ribo genes",
         col = colb, las = 2, cex.axis = 0.7)
 dev.off()
@@ -165,7 +164,7 @@ screeplot(qcpca, type = "lines", main = "QC-PCA screeplot")
 
 fig_data <- data.frame(pca$x[, 1:2], qc, 
                        QPC1 = qcpca$x[, 1], QPC2 = qcpca$x[, 2],
-                       batch = batch)
+                       batch = colData(se)$batch)
 
 ggplot(fig_data, aes(x = PC1, y = PC2, color = batch)) +
   geom_point(alpha = 0.3) + scale_color_manual(values = colb) +
@@ -261,22 +260,23 @@ expt <- colData(se_filtered)$expt
 # Check for batch effects prior to normalization
 pdf(file = file.path(vizdir, pasteu(exptstr, "batchchk_prefilt.pdf")))
 plot(pca$x, pch = 19, col = colb[colData(se)$batch], 
-     main = "PCA Color-coded by batch")
-legend("topleft", legend = levels(batch), fill = colb, cex = 0.6)
+     main = "PCA Color-coded by batch, Pre-filtering")
+legend("topleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.6)
 plot(qcpca$x, pch = 19, col = colb[colData(se)$batch],
-     main = "QPCA Color-coded by batch")
-legend("bottomleft", legend = levels(batch), fill = colb, cex = 0.6)
+     main = "QPCA Color-coded by batch, Pre-filtering")
+legend("bottomleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.6)
 
 boxplot(pca$x[, 1] ~ colData(se)$batch, col = colb, cex.axis = 0.75, las = 2,
-        main = "First Principal Component")
+        main = "First Principal Component, Pre-filtering")
 boxplot(pca$x[, 2] ~ colData(se)$batch, col = colb, cex.axis = 0.75, las = 2,
-        main = "Second Principal Component")
+        main = "Second Principal Component, Pre-filtering")
 
 pca <- fastpca(log2(assay(se_filtered) + 1))
 tsne_data <- Rtsne(pca[, 1:10], pca = FALSE, max_iter = 5000)
 plot(tsne_data$Y, pch = 19, cex = 0.4, 
-     col = alpha(colb[colData(se_filtered)$batch], 0.5))
-legend("topleft", legend = levels(batch), fill = colb, cex = 0.5)
+     col = alpha(colb[colData(se_filtered)$batch], 0.5),
+     main = "Fast PCA Color-coded by batch, Post-filtering")
+legend("topleft", legend = levels(colData(se_filtered)$batch), fill = colb, cex = 0.5)
 dev.off()
 
 # ---- Preparation for normalization ----
@@ -330,4 +330,4 @@ dev.off()
 save(qc, pca, se_filtered, batch, expt,
      file = file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
 save(counts_filtered, logcounts_filtered,
-     file = file.path(outdir, pasteu(exptstr, "counts_filtered.Rda")))
+     file = file.path(outdir, pasteu(exptstr, "counts_filtered.Rda"))) 
