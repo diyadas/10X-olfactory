@@ -27,13 +27,14 @@ option_list <- list(
   	      help = "whether to calculate QC metrics, will error if
 	      QC metrics have not previously been calculated"),
   make_option("--fast", default = FALSE, type = "logical",
-  	      help = "whether to use fast (approximate) PCA")
+  	      help = "whether to use fast (approximate) PCA"),
+  make_option("--exclude", default=NULL, type="character", help="name for excluded samples, if given")
   )
 opt <- parse_args(OptionParser(option_list = option_list))
 exptstr <- opt$expt
 outdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz", "prenormalization")
-crdir <- file.path("../output", exptstr, "cr")
+crdir <- file.path("../output", exptstr, "crcount")
 exptinfo <- read.csv(file.path("../output", exptstr, opt$exptinfo),
                      stringsAsFactors = FALSE)
 system(paste("mkdir -p", c(outdir, vizdir)))
@@ -64,11 +65,31 @@ expt_batch <- apply(exptinfo, 1, function(crexpt) {
 expt_batch <- do.call(rbind, expt_batch)
 expt <- expt_batch$expt
 batch <- expt_batch$batch
-
 counts <- as.matrix(exprs(load_cellranger_matrix(file.path(crdir, opt$aggr))))
 
 se <- SummarizedExperiment(list(counts = counts), 
                            colData = data.frame(batch = batch, expt = expt))
+excluded_samples_list <- NULL
+if (!is.null(opt$exclude)){
+  excluded_samples_list <<- load(paste0("../ref/",exptstr,"_",opt$exclude,"_exclude.Rda"))
+  message("using sample to exclude list")
+}
+
+message(paste("Dimensions:", dim(se)[1], "genes,", dim(se)[2], "samples"))
+
+# Exclude cells that are known to be contaminants
+if(length(excluded_samples_list) > 0){
+  cellIDsToExclude=vector()
+  for (i in seq_along(excluded_samples_list)){
+    print(excluded_samples_list[i])
+    cellIDsToExclude <- append(cellIDsToExclude,get(excluded_samples_list[i]))
+    print(length(cellIDsToExclude))
+  }
+  desiredCells <- !(colnames(se) %in% cellIDsToExclude)
+  se <<- se[, desiredCells]
+}
+message(paste("Dimensions after dropping contaminants:", dim(se)[1], "genes,", dim(se)[2], "samples"))
+
 genes <- read.table(file = file.path(crdir, opt$aggr, 
                                      "outs/filtered_gene_bc_matrices_mex",
                                      opt$annotation, "genes.tsv"))
@@ -111,22 +132,23 @@ if (runQC) {
 					      "log10_total_counts",
 					      "pct_counts_in_top_50_features",
 					      "pct_counts_in_top_100_features",
-					      "pct_counts_in_top_200_features")], 
+					      "pct_counts_in_top_200_features",
+					      "pct_counts_in_top_500_features")], 
 			     mito_pct = mito_pct, 
                   	     ribo_pct = ribo_pct))
   qcpca <- prcomp(qc, scale. = TRUE)
  
  pdf(file = file.path(vizdir, pasteu(exptstr, "mitoribo_prefilt.pdf")),
     height = 11, width = 8.5)
-plot(qc[,"mito_pct"], col = colb[batch], xlab = "cell index",
+plot(qc[,"mito_pct"], col = colb[colData(se)$batch], xlab = "cell index",
      main = "% mito (Mt*) genes")
-legend("topleft", legend = levels(batch), fill = colb, cex = 0.8)
+legend("topleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.8)
 boxplot(qc[,"mito_pct"] ~ colData(se)$batch, main = "percent mito genes",
         col = colb, las = 2, cex.axis = 0.7)
 
-plot(qc[,"ribo_pct"], col = colb[batch], xlab = "cell index", 
+plot(qc[,"ribo_pct"], col = colb[colData(se)$batch], xlab = "cell index", 
      main = "% ribo (Rpl*) genes")
-legend("topleft", legend = levels(batch), fill = colb, cex = 0.8)
+legend("topleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.8)
 boxplot(qc[,"ribo_pct"] ~ colData(se)$batch, main = "percent ribo genes",
         col = colb, las = 2, cex.axis = 0.7)
 dev.off()
@@ -142,7 +164,7 @@ screeplot(qcpca, type = "lines", main = "QC-PCA screeplot")
 
 fig_data <- data.frame(pca$x[, 1:2], qc, 
                        QPC1 = qcpca$x[, 1], QPC2 = qcpca$x[, 2],
-                       batch = batch)
+                       batch = colData(se)$batch)
 
 ggplot(fig_data, aes(x = PC1, y = PC2, color = batch)) +
   geom_point(alpha = 0.3) + scale_color_manual(values = colb) +
@@ -238,22 +260,23 @@ expt <- colData(se_filtered)$expt
 # Check for batch effects prior to normalization
 pdf(file = file.path(vizdir, pasteu(exptstr, "batchchk_prefilt.pdf")))
 plot(pca$x, pch = 19, col = colb[colData(se)$batch], 
-     main = "PCA Color-coded by batch")
-legend("topleft", legend = levels(batch), fill = colb, cex = 0.6)
+     main = "PCA Color-coded by batch, Pre-filtering")
+legend("topleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.6)
 plot(qcpca$x, pch = 19, col = colb[colData(se)$batch],
-     main = "QPCA Color-coded by batch")
-legend("bottomleft", legend = levels(batch), fill = colb, cex = 0.6)
+     main = "QPCA Color-coded by batch, Pre-filtering")
+legend("bottomleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.6)
 
 boxplot(pca$x[, 1] ~ colData(se)$batch, col = colb, cex.axis = 0.75, las = 2,
-        main = "First Principal Component")
+        main = "First Principal Component, Pre-filtering")
 boxplot(pca$x[, 2] ~ colData(se)$batch, col = colb, cex.axis = 0.75, las = 2,
-        main = "Second Principal Component")
+        main = "Second Principal Component, Pre-filtering")
 
 pca <- fastpca(log2(assay(se_filtered) + 1))
 tsne_data <- Rtsne(pca[, 1:10], pca = FALSE, max_iter = 5000)
 plot(tsne_data$Y, pch = 19, cex = 0.4, 
-     col = alpha(colb[colData(se_filtered)$batch], 0.5))
-legend("topleft", legend = levels(batch), fill = colb, cex = 0.5)
+     col = alpha(colb[colData(se_filtered)$batch], 0.5),
+     main = "Fast PCA Color-coded by batch, Post-filtering")
+legend("topleft", legend = levels(colData(se_filtered)$batch), fill = colb, cex = 0.5)
 dev.off()
 
 # ---- Preparation for normalization ----
@@ -277,7 +300,7 @@ logcounts_filtered <- log2(counts_filtered + 1)
 controlheatmaps <- function(controllist, se_filtered){
   pdf(file = file.path(vizdir, pasteu(exptstr, controllist, "heatmap.pdf")))
   plotHeatmap(logcounts_filtered[rowData(se_filtered)[[controllist]], ],
-              sampleData = data.frame(expt = colData(se_filtered)$expt, 
+              colData = data.frame(expt = colData(se_filtered)$expt, 
                                       batch = colData(se_filtered)$batch),
               clusterLegend = list(expt = cole, batch = colb),
               main = paste(toupper(controllist), "after filtering"), 
@@ -307,4 +330,4 @@ dev.off()
 save(qc, pca, se_filtered, batch, expt,
      file = file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
 save(counts_filtered, logcounts_filtered,
-     file = file.path(outdir, pasteu(exptstr, "counts_filtered.Rda")))
+     file = file.path(outdir, pasteu(exptstr, "counts_filtered.Rda"))) 
