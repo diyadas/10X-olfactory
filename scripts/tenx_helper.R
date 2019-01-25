@@ -52,3 +52,15 @@ pcaggplot <- function(fig_data, plot_type, feature){
                                   name = feature) + 
            ggtitle(plot_type))
 }
+
+rmblank <- function(input_filepath){
+   staplr::remove_pages(1, input_filepath, output_filepath = "tmp.pdf")
+   system(paste("mv tmp.pdf", input_filepath))
+}
+
+last_datfile <-	function(datdir, exptstr, method, norm, clusmethod){
+   datfiles <<- list.files(path = datdir,
+                           pattern = pasteu(exptstr, method, norm, clusmethod), full.names = TRUE)
+   datfile <- datfiles[length(datfiles)]
+   print(paste("Loading this data file: ", datfile))
+}
