@@ -1,4 +1,4 @@
-# Differential gene expression of 10X data
+# Slingshot lineages on 10X data
 # Authors: Diya Das
 # Last revised: Wed Jan 23 12:20:31 2019
 
@@ -8,6 +8,7 @@ library(clusterExperiment)
 library(slingshot)
 library(BiocParallel)
 library(optparse)
+library(proftools)
 
 option_list <- list(
   make_option("--expt", default = "", type = "character", help = "Experiment ID"),
@@ -27,10 +28,7 @@ register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 
-datfiles <<- list.files(path = datdir, 
-                        pattern = pasteu(exptstr, opt$method, opt$norm, opt$clusmethod), full.names = TRUE)
-datfile <- datfiles[length(datfiles)]
-print(paste("Loading this data file: ", datfile))
+datfile <- last_datfile(datdir, exptstr, opt$method, opt$norm, opt$clusmethod)
 load(datfile)
 
 reducedDim <- seu@dr$pca@cell.embeddings
@@ -38,8 +36,10 @@ clusterLabels <- seu@meta.data$res.0.5
 names(clusterLabels) <- rownames(reducedDim)
 
 for (k in 3:20){
-slingOut <- slingshot(reducedDim[,1:k], clusterLabels = clusterLabels,
-                      start.clus = 11, end.clus = c(9, 3))
-print(slingLineages(slingOut))
+    print(paste("Running slingshot for", k, "PCs:"))
+    pd1 <- profileExpr(slingOut <- getLineages(reducedDim[,1:k], clusterLabels = clusterLabels,
+                      start.clus = 11, end.clus = c(9, 3)))
+    print(hotPaths(pd1), value = 'time')
+    print(slingLineages(slingOut))
 }
 
