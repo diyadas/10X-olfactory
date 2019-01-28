@@ -10,7 +10,7 @@ library(BiocParallel)
 library(optparse)
 
 option_list <- list(
-  make_option("--expt", default = "", type = "character", help = "Experiment ID"),
+  make_option("--expt", type = "character", help = "Experiment ID"),
   make_option("--normalization", type = "character", help = "name of normalization"),
   make_option("--method", type = "character", help = "scone or zinb"),
   make_option("--ncores", default = "1", type = "double")
@@ -47,17 +47,19 @@ if (method == "zinb"){
 mat <- mat[, samples]
 
 seed <- 2782472
-resolution <- seq(0, 2, 0.1)
+#resolution <- seq(0, 2, 0.1)
+≈resolution <- (2)
 
 seu <- CreateSeuratObject(raw.data = mat, min.cells = 1, min.genes = 1, 
                           project = exptstr)
 if (method == "scone"){
-seu <- ScaleData(seu)
-seu <- RunPCA(seu, seed.use = seed, pc.genes = rownames(seu@data))
+seu <- ScaleData(seu, do.center = TRUE, do.scale = FALSE)
+seu <- RunPCA(seu, seed.use = seed, pc.genes = rownames(seu@data), pcs.compute = 50)
 seu <- FindClusters(object = seu, reduction.type = "pca", 
-                    dims.use = 1:20, #this should match K
+                    dims.use = 1:50, #this should match K
                     resolution = resolution, print.output = 0, save.SNN = TRUE)
 } else if (method == "zinb") {
+  seu <- ScaleData(seu, do.center = TRUE, do.scale = FALSE)
   seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", 
                          slot = "cell.embeddings",
                          new.data = reducedDim(zinb_obj, "zinbwave")[samples,])
@@ -68,9 +70,7 @@ seu <- FindClusters(object = seu, reduction.type = "pca",
                       resolution = resolution, print.output = 0, save.SNN = TRUE)
 }
 
-clus.labels <- seu@ident
-names(clus.labels) <- paste0(names(seu@ident))
 
-save(seu, clus.labels, file = file.path(outdir, 
-	  	       	      		pasteu0(exptstr, opt$method, opt$normalization, "snn", 
-					       format(Sys.time(), "%Y%m%d_%H%M%S") ,".Rda")))
+save(seu, file = file.path(outdir, 
+	         	   pasteu0(exptstr, opt$method, opt$normalization, "snn", 
+			   format(Sys.time(), "%Y%m%d_%H%M%S") ,".Rda")))
