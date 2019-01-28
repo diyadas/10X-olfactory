@@ -18,30 +18,35 @@ option_list <- list(
 opt <- parse_args(OptionParser(option_list = option_list))
 exptstr <- opt$expt
 method <- opt$method
-outdir <- file.path("../output", exptstr, "data")
+datdir <- file.path("../output", exptstr, "data")
 ncores <- opt$ncores
 
 register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
+datfiles <- list.files(path = datdir, pattern = pasteu(exptstr, method, opt$normalization, "snn"), full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
 
-load(file.path(outdir, pasteu(exptstr, opt$method, "snn.Rda")))
-
-ce <- ClusterExperiment(seu@raw.data, clusters = seu@meta.data[,"res.0.5"], 
+ce <- ClusterExperiment(seu@raw.data, clusters = seu@meta.data[,"res.2"], 
                         transformation = function(x) log2(x + 1))
 ce <- makeDendrogram(ce, reduceMethod = "var", nDims = 1000)
 
 de_ce <- getBestFeatures(ce, contrastType = "OneAgainstAll", whichAssay = 1, 
                          DEMethod = "limma", number = 100)
-write.table(de_ce, file = file.path(outdir, 
-                                    pasteu(exptstr, method, 
+
+save(ce, file = file.path(datdir, pasteu0(exptstr, method,
+                                           opt$normalization,"res2","cmobj", format(Sys.time(), "%Y%m%d_%H%M%S"),".Rda")))
+
+write.table(de_ce, file = file.path(datdir, 
+                                    pasteu0(exptstr, method, 
                                            opt$normalization,"res05","DE_OneAgainstAll", format(Sys.time(), "%Y%m%d_%H%M%S"),".txt")),
             sep = "\t", quote = FALSE, row.names = FALSE)
 
-
 #de_ce <- getBestFeatures(ce, contrastType = "Pairs", whichAssay = 1, 
 #                         DEMethod = "limma", number = 100)
-#write.table(de_ce, file = file.path(outdir, 
+#write.table(de_ce, file = file.path(datdir, 
 #                                    pasteu(exptstr, method, 
 #                                           opt$normalization,"DE_Pairs", format(Sys.time(), "%Y%m%d_%H%M%S"),".txt")),
 #            sep = "\t", quote = FALSE, row.names = FALSE)
