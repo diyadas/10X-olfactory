@@ -55,6 +55,7 @@ if (opt$subsample) {
   N <- NCOL(scone_obj)
   n <- ceiling(N / 10)
   sub_ranks <- replicate(10, {
+    print("New replicate...")
     idx <- sample(N, n)
     scone_sub <- scone_obj[, idx]
     scone_sub <- scone_sub[rowSums(assay(scone_sub)) > 0, ]     # filter genes
