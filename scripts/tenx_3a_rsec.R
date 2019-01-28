@@ -29,10 +29,10 @@ source("tenx_helper.R")
 
 message(str(args))
 
-load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
+load(file.path(outdir, pasteu(exptstr, method, opt$normalization, "data.Rda")))
 if (method == "scone") {
-   mat <- get_normalized(scone_obj3, opt$normalization)
-   rm(scone_obj3)
+   mat <- get_normalized(scone_obj, opt$normalization)
+   rm(scone_obj)
    gc()
 }
 seed <- 2782472
@@ -56,4 +56,7 @@ cl <- RSEC(mat, k0s = seq(10,50,by=5), alphas = c(0.1,0.3),
 
 subsamplestr <- ifelse (opt$subsample, "sub", "nosub")
 seqstr <- ifelse(opt$sequential, "seq", "noseq")
-save(cl, file = file.path(outdir, pasteu(exptstr, opt$method,"rsec", subsamplestr, seqstr,".Rda")))
+#save(cl, file = file.path(outdir, pasteu(exptstr, opt$method,"rsec", subsamplestr, seqstr,".Rda")))
+
+save(cl, subsamplestr, seqstr, file = file.path(outdir, pasteu0(exptstr, opt$method, opt$normalization, "rsec",
+                                               format(Sys.time(), "%Y%m%d_%H%M%S") ,".Rda")))
