@@ -29,8 +29,16 @@ datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
 
-ce <- ClusterExperiment(seu@raw.data, clusters = seu@meta.data[,"res.2"], 
-                        transformation = function(x) log2(x + 1))
+load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
+se_filtered <- se_filtered[, colnames(seu@data)]
+metadata <- data.frame(seu@meta.data, expt = colData(se_filtered)$expt,
+                                      batch = colData(se_filtered)$batch,
+                      samples = colnames(seu@data), row.names = "samples")
+metadata <- metadata[colnames(seu@raw.data),]
+
+ce <- ClusterExperiment(seu@raw.data, clusters = metadata[,"res.2"], 
+                        transformation = function(x) log2(x + 1),
+			colData = metadata)
 ce <- makeDendrogram(ce, reduceMethod = "var", nDims = 1000)
 
 de_ce <- getBestFeatures(ce, contrastType = "OneAgainstAll", whichAssay = 1, 
