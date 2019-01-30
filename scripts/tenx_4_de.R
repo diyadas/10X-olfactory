@@ -37,8 +37,9 @@ metadata <- data.frame(seu@meta.data, expt = colData(se_filtered)$expt,
 metadata <- metadata[colnames(seu@raw.data),]
 
 ce <- ClusterExperiment(seu@raw.data, clusters = metadata[,"res.2"], 
-                        transformation = function(x) log2(x + 1),
-			colData = metadata)
+                        transformation = function(x) log2(x + 1))
+colData(ce) <- DataFrame(metadata)
+
 ce <- makeDendrogram(ce, reduceMethod = "var", nDims = 1000)
 
 de_ce <- getBestFeatures(ce, contrastType = "OneAgainstAll", whichAssay = 1, 
