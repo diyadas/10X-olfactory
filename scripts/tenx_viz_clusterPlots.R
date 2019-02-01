@@ -43,15 +43,15 @@ load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
 if (opt$clusmethod == "rsec"){
   se_filtered <- se_filtered[, colnames(cl)]
   dat <- log2(assay(cl) + 1)
-  metadata <- data.frame(cl@clusterMatrix, expt = colData(se_filtered)$expt,
+  colData <- DataFrame(cl@clusterMatrix, expt = colData(se_filtered)$expt,
                                       batch = colData(se_filtered)$batch,
-                      samples = colnames(cl), row.names = "samples")
+                      samples = colnames(cl))
 } else if (opt$clusmethod == "snn"){
   se_filtered <- se_filtered[, colnames(seu@data)]
   dat <- seu@data
   metadata <- data.frame(seu@meta.data, expt = colData(se_filtered)$expt, 
 	    			      batch = colData(se_filtered)$batch,  
-	    	      samples = colnames(seu@data), row.names = "samples")
+	    	      samples = colnames(seu@data))
 metadata <- metadata[with(metadata, order(res.2, expt, batch)),]
 #metadata <- metadata[,c(grep('^res|expt|batch', colnames(metadata)))]
 metadata <- metadata[,c('res.2', 'res.0.5', 'expt', 'batch')]
@@ -68,7 +68,7 @@ colRKC<- c("chartreuse3", "firebrick3", "chocolate4","slategray2","darkviolet",
                 "cyan2", "darkseagreen4")
 clusIndex <- c('1' ,'2', '3','4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16')
 #clusterLegend <- setNames(rep(list(bigPalette), ncol(metadata)), colnames(metadata))
-clusterLegend <- setNames(rep(list(colRKC), ncol(metadata)),colnames(metadata))
+clusterLegend <- setNames(rep(list(colRKC), ncol(colData)),colnames(colData))
 #orderedLegend  <- factor(mydata(metadata)[,"mergeClusters"],
 #                      levels=clusterLegend(metadata)[["mergeClusters"]][, "name"])
 #names(orderedLegend) <- colnames(metadata)
@@ -87,8 +87,8 @@ if (opt$clusmethod == "snn") {
 				 clusterLegend = clusterLegend, 
 				 annLegend = TRUE, overRideClusterLimit = TRUE)
 } else if (opt$clusmethod == "rsec"){
-  plotHeatmap(dat[markers, ], clusterSamples = TRUE, clusterFeatures = FALSE, breaks = breakv, colData = metadata, 
-				 clusterLegend = list(expt = cole),
+  plotHeatmap(cl, clusterSamples = TRUE, clusterFeaturesData = markers, clusterFeatures = FALSE, breaks = breakv, 
+				 clusterLegend = list(expt = cole), colData = colData,
 				 annLegend = TRUE, overRideClusterLimit = TRUE)
 
 }
