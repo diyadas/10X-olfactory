@@ -4,11 +4,11 @@
 
 # Load command-line arguments
 library(scone)
-library(clusterExperiment)
 library(BiocParallel)
 library(optparse)
 library(Rtsne)
 library(Seurat)
+library(clusterExperiment)
 
 option_list <- list(
   make_option("--expt", default = "", type = "character", help = "Experiment ID"),
@@ -38,13 +38,16 @@ print(paste("Loading this data file: ", datfile))
 load(datfile)
 load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
 
-se_filtered <- se_filtered[, colnames(seu@data)]
 
 
 if (opt$clusmethod == "rsec"){
-  dat <- transform(cl)
-  #metadata <- 
+  se_filtered <- se_filtered[, colnames(cl)]
+  dat <- log2(assay(cl) + 1)
+  metadata <- data.frame(cl@clusterMatrix, expt = colData(se_filtered)$expt,
+                                      batch = colData(se_filtered)$batch,
+                      samples = colnames(cl), row.names = "samples")
 } else if (opt$clusmethod == "snn"){
+  se_filtered <- se_filtered[, colnames(seu@data)]
   dat <- seu@data
   metadata <- data.frame(seu@meta.data, expt = colData(se_filtered)$expt, 
 	    			      batch = colData(se_filtered)$batch,  
@@ -73,7 +76,6 @@ clusterLegend[["expt"]] <- cole
 
 markers <- intersect(unlist(read.table(file.path("../ref", opt$markerfile))), 
                         rownames(dat))
-#ob_markers <- intersect(unlist(read.table(file.path("../ref", OBmarkers.txt))), rownames(dat))
 breakv <- c(min(dat), 
             seq(0, quantile(dat[dat > 0], .99, na.rm = TRUE), length = 50), 
             max(dat))
@@ -91,7 +93,7 @@ if (opt$clusmethod == "snn") {
 
 }
 dev.off()
-
+###########################################
 # t-SNE colored by cluster and time point
 
 if (opt$clusmethod == "snn"){
@@ -148,30 +150,30 @@ dev.off()
 # save(seu, file = datfile)
 # }}
 
- pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "clus", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
- plot(seu@dr$tsne@cell.embeddings, pch = 19, cex = 0.4, col = alpha(colRKC[factor(seu@meta.data[,"res.2"])], 0.3), 
- 				  xlab = "TSNE 1", ylab = "TSNE 2")
- legend("topleft", legend = levels(factor(seu@meta.data[,"res.2"])), fill = colRKC, cex = 0.5)
- dev.off()
+#  pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "clus", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
+#  plot(seu@dr$tsne@cell.embeddings, pch = 19, cex = 0.4, col = alpha(colRKC[factor(seu@meta.data[,"res.2"])], 0.3), 
+#  				  xlab = "TSNE 1", ylab = "TSNE 2")
+#  legend("topleft", legend = levels(factor(seu@meta.data[,"res.2"])), fill = colRKC, cex = 0.5)
+#  dev.off()
 
-pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "batch", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
-plot(seu@dr$tsne@cell.embeddings, pch = 19, cex = 0.4, col = alpha(colb[batch], 0.3), xlab = "TSNE 1", ylab =" TSNE 2")
-legend("bottomleft", legend = levels(batch), fill = colb, cex = 0.6)
-dev.off()
+# pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "batch", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
+# plot(seu@dr$tsne@cell.embeddings, pch = 19, cex = 0.4, col = alpha(colb[batch], 0.3), xlab = "TSNE 1", ylab =" TSNE 2")
+# legend("bottomleft", legend = levels(batch), fill = colb, cex = 0.6)
+# dev.off()
 
-pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "expt", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
-plot(seu@dr$tsne@cell.embeddings, pch = 19, cex = 0.4, col = alpha(cole[expt], 0.3), xlab = "TSNE 1", ylab =" TSNE 2")
-legend("bottomleft", legend = levels(expt), fill = cole, cex = 0.6)
-dev.off()
+# pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "expt", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
+# plot(seu@dr$tsne@cell.embeddings, pch = 19, cex = 0.4, col = alpha(cole[expt], 0.3), xlab = "TSNE 1", ylab =" TSNE 2")
+# legend("bottomleft", legend = levels(expt), fill = cole, cex = 0.6)
+# dev.off()
 
- pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "geneexp", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
- t1 <- theme(plot.background=element_blank(), panel.grid.minor=element_blank(), panel.background=element_blank(),axis.ticks=element_blank(), legend.background=element_blank(), axis.text.x=element_blank(), axis.text.y=element_blank(),legend.key= element_rect(fill="white"), panel.border = element_rect(fill=NA,colour = "black"),axis.line=element_blank(),aspect.ratio=1)
- dat <- data.frame(seu@dr$tsne@cell.embeddings, t(seu@data[markers,]))
- par(mar=c(2,2,1,1), mfrow=c(1,1))
- for (gene in markers){
-   p <- ggplot(dat, aes_string("tSNE_1", "tSNE_2", colour = gene)) + geom_point(cex=0.5)
-   print(p + t1 +
-           scale_colour_gradient2(low = "#053061", mid = "grey95", high = "#67001F") +
-           ggtitle(gene))
- }
- dev.off()
+#  pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "geneexp", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
+#  t1 <- theme(plot.background=element_blank(), panel.grid.minor=element_blank(), panel.background=element_blank(),axis.ticks=element_blank(), legend.background=element_blank(), axis.text.x=element_blank(), axis.text.y=element_blank(),legend.key= element_rect(fill="white"), panel.border = element_rect(fill=NA,colour = "black"),axis.line=element_blank(),aspect.ratio=1)
+#  dat <- data.frame(seu@dr$tsne@cell.embeddings, t(seu@data[markers,]))
+#  par(mar=c(2,2,1,1), mfrow=c(1,1))
+#  for (gene in markers){
+#    p <- ggplot(dat, aes_string("tSNE_1", "tSNE_2", colour = gene)) + geom_point(cex=0.5)
+#    print(p + t1 +
+#            scale_colour_gradient2(low = "#053061", mid = "grey95", high = "#67001F") +
+#            ggtitle(gene))
+#  }
+#  dev.off()
