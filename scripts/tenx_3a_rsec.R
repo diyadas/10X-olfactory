@@ -54,9 +54,16 @@ cl <- RSEC(mat, k0s = seq(10,50,by=5), alphas = c(0.1,0.3),
                 mergeDEMethod = "limma-voom", 
                 verbose = TRUE, run = TRUE)
 
+load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
+se_filtered <- se_filtered[, colnames(cl)]
+colData(cl) <- DataFrame(cl@clusterMatrix, colData(cl),
+			 expt = colData(se_filtered)$expt,
+                         batch = colData(se_filtered)$batch,
+                         samples = colnames(cl))
+cl <- makeDendrogram(cl, reduceMethod = "var", nDims = 1000)
+
 subsamplestr <- ifelse (opt$subsample, "sub", "nosub")
 seqstr <- ifelse(opt$sequential, "seq", "noseq")
-#save(cl, file = file.path(outdir, pasteu(exptstr, opt$method,"rsec", subsamplestr, seqstr,".Rda")))
 
 save(cl, subsamplestr, seqstr, file = file.path(outdir, pasteu0(exptstr, opt$method, opt$normalization, "rsec",
                                                format(Sys.time(), "%Y%m%d_%H%M%S") ,".Rda")))
