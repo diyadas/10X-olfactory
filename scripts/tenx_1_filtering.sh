@@ -16,7 +16,7 @@ R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_1_filtering.R --
 --exptinfo regen_exptinfo.csv \
 --runQC TRUE \
 --exclude double \
-> 'tenx_1_filtering'$NOW'.Rout'
+> 'tenx_1_filtering'$NOW'.Rout' 2>&1
 
 #R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_1_filtering.R --args \
 #--expt ob --ncores $ncores --aggr RCOB2AB56 \
@@ -25,7 +25,7 @@ R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_1_filtering.R --
 #--posctrlfile "../ref/OBmarkers.txt" \
 #--runQC TRUE \
 #--exclude aon \
-#> 'tenx_1_filtering'$NOW'.Rout'
+#> 'tenx_1_filtering'$NOW'.Rout' 2>&1
 
 
 ####
