@@ -1,6 +1,11 @@
 pal <- clusterExperiment::bigPalette
 colb <- c("dodgerblue3", "darkviolet", "goldenrod", "chartreuse3", "cadetblue2", "magenta", "chocolate1", "forestgreen", "plum", "azure3", "chocolate4", "darkslategray", "cornsilk", "aquamarine3", "burlywood3", "darkblue", "gray45")
 cole <- c("cornflowerblue", "darkgoldenrod", "darkorchid", "darkorange2", "deeppink3", "cadetblue1", "azure4", "darkslateblue", "darkolivegreen1", "antiquewhite2")
+colRKC<- c("chartreuse3", "firebrick3", "chocolate4","slategray2","darkviolet", 
+          "darkorange2","pink", "gold", "deepskyblue", "pink3", 
+          "deeppink", "grey36", "royalblue3", "mediumorchid1","grey0", 
+          "cyan2", "darkseagreen4")
+
 
 pasteu <- function(...) paste(..., sep = "_")
 pasteu0 <- function(...){
