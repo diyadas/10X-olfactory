@@ -36,7 +36,7 @@ metadata <- data.frame(seu@meta.data, expt = colData(se_filtered)$expt,
                       samples = colnames(seu@data), row.names = "samples")
 metadata <- metadata[colnames(seu@raw.data),]
 
-ce <- ClusterExperiment(seu@raw.data, clusters = metadata[,"res.2"], 
+ce <- ClusterExperiment(seu@raw.data, clusters = metadata[,"res.0.5"], 
                         transformation = function(x) log2(x + 1))
 colData(ce) <- DataFrame(metadata)
 
@@ -46,7 +46,7 @@ de_ce <- getBestFeatures(ce, contrastType = "OneAgainstAll", whichAssay = 1,
                          DEMethod = "limma", number = 100)
 
 save(ce, file = file.path(datdir, pasteu0(exptstr, method,
-                                           opt$normalization,"res2","cmobj", format(Sys.time(), "%Y%m%d_%H%M%S"),".Rda")))
+                                           opt$normalization,"res05","cmobj", format(Sys.time(), "%Y%m%d_%H%M%S"),".Rda")))
 
 write.table(de_ce, file = file.path(datdir, 
                                     pasteu0(exptstr, method, 
