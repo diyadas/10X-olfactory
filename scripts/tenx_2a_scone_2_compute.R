@@ -34,7 +34,7 @@ scone_fx <- function(SconeExperimentObj, ...){
         scaling = list(none = identity,sum = SUM_FN, tmm = TMM_FN, uq = UQ_FN,
                        fq = FQT_FN, deseq = DESEQ_FN),
         k_ruv = 3,
-        k_qc = 5,
+	k_qc = 5,
         adjust_bio = "no",
         adjust_batch = "yes",
         eval_kclust = 5:15,
