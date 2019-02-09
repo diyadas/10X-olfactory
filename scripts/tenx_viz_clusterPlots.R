@@ -43,15 +43,18 @@ load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
 
 if (opt$clusmethod == "snn"){
   se_filtered <- se_filtered[, colnames(seu@data)]
-  metadata <- data.frame(seu@meta.data, expt = colData(se_filtered)$expt, 
-	    			      batch = colData(se_filtered)$batch,  
-	    	      samples = colnames(seu@data))
-  metadata <- metadata[,c(grep('^res|expt|batch', colnames(metadata)))]
-  cl <- ClusterExperiment(seu@raw.data, clusters = metadata[, opt$seures],
-                        transformation = function(x) log2(x + 1))
+  metadata <- seu@meta.data[,c(grep('^res', colnames(seu@meta.data)))]
+  counts <- 2^(seu@data)-1
+  cl <- ClusterExperiment(counts,
+                          clusters = as.matrix(metadata),
+     			  primaryIndex = which(colnames(metadata) == opt$seures),
+                          transformation = function(x) log2(x + 1))
+  metadata <- data.frame(expt = colData(se_filtered)$expt, 
+	    		 batch = colData(se_filtered)$batch,  
+	    	      	 samples = colnames(seu@data))
   colData(cl) <- DataFrame(metadata)
-  #cl <- metadata[with(metadata, order(opt$seures, expt, batch)), ]
 }
+ 
 
 seed <- 2782472
 
@@ -80,10 +83,11 @@ pdf(file = file.path(vizdir,
     width = 8.5, height = 11)
 
 plotHeatmap(cl, clusterSamplesData = "primaryCluster",
-            clusterFeaturesData = markers, clusterFeatures = FALSE, 
+            clusterFeaturesData = markers, whichClusters = "all", clusterFeatures = FALSE, 
             breaks = breakv, 
             clusterLegend = clusterLegend,
-            annLegend = TRUE, overRideClusterLimit = TRUE)
+            annLegend = TRUE, overRideClusterLimit = TRUE,
+	    colData = colnames(colData(cl)) %in% c("expt", "batch"))
 dev.off()
 ###########################################
 # # t-SNE colored by cluster and time point
