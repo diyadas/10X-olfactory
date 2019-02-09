@@ -62,11 +62,12 @@ seed <- 2782472
 bigPalette <- bigPalette[-3]
 
 ## Set cluster legend colors
-clusterLegend <- setNames(rep(list(bigPalette), ncol(colData(cl))), colnames(colData(cl)))
-if (exptstr == "ob" & length(unique(colData(cl)[, 1])) < length(colRKC)) {
-  clusterLegend <- setNames(rep(list(colRKC), ncol(colData(cl))), colnames(colData(cl)))
-}
-clusterLegend[["expt"]] <- cole
+#clusterLegend <- setNames(rep(list(bigPalette), ncol(colData(cl))), colnames(colData(cl)))
+#if (exptstr == "ob" & length(unique(colData(cl)[, 1])) < length(colRKC)) {
+#  clusterLegend <- setNames(rep(list(colRKC), ncol(colData(cl))), colnames(colData(cl)))
+#}
+
+#clusterLegend[["expt"]] <- cole
 
 markers <- intersect(unlist(read.table(file.path("../ref", opt$markerfile))), 
                         rownames(cl))
@@ -85,9 +86,9 @@ pdf(file = file.path(vizdir,
 plotHeatmap(cl, clusterSamplesData = "primaryCluster",
             clusterFeaturesData = markers, whichClusters = "all", clusterFeatures = FALSE, 
             breaks = breakv, 
-            clusterLegend = clusterLegend,
+#            clusterLegend = clusterLegend,
             annLegend = TRUE, overRideClusterLimit = TRUE,
-	    colData = colnames(colData(cl)) %in% c("expt", "batch"))
+	    colData = which(colnames(colData(cl)) %in% c("expt", "batch")))
 dev.off()
 ###########################################
 # # t-SNE colored by cluster and time point
