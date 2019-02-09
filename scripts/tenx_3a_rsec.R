@@ -44,7 +44,7 @@ cl <- RSEC(mat, k0s = seq(10,50,by=5), alphas = c(0.1,0.3),
                 sequential = opt$sequential, subsample = opt$subsample,
                 subsampleArgs = list(resamp.num = 50, clusterFunction="kmeans"),
                 betas = c(0.8),
-                clusterFunction = "kmeans",  
+                clusterFunction = "pam",  
 		minSizes = 1,
                 ncores = ncores,
                 consensusProportion = 0.7, consensusMinSize = 10, # with sequential turned off, then consensus might result in many -1s
