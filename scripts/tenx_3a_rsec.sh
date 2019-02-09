@@ -9,7 +9,7 @@
 #
 
 ncores=$1
-NOW=$(date +"_%m%d%Y-%H%M%S")
+NOW=$(date +"_%Y%m%d-%H%M%S")
 
 while true; do free -h >> 'tenx_3_rsec'$NOW'_memory.out'; sleep 15; done &
 
