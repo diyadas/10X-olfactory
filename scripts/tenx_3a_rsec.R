@@ -37,7 +37,7 @@ if (method == "scone") {
 }
 seed <- 2782472
 
-cl <- RSEC(mat, k0s = seq(10,50,by=5), alphas = c(0.1,0.3),
+cl <- RSEC(mat, k0s = seq(8,30,by=2), alphas = c(0.1,0.3),
                 reduceMethod = "PCA",
                 transFun = function(x) log2(x+1), # should override isCount=FALSE, or could write isCount=TRUE
                 nReducedDims = 30,
@@ -54,7 +54,7 @@ cl <- RSEC(mat, k0s = seq(10,50,by=5), alphas = c(0.1,0.3),
                 mergeDEMethod = "limma-voom", 
                 verbose = TRUE, run = TRUE)
 
-load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
+load(file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
 se_filtered <- se_filtered[, colnames(cl)]
 colData(cl) <- DataFrame(cl@clusterMatrix, colData(cl),
 			 expt = colData(se_filtered)$expt,
