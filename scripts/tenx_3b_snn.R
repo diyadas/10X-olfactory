@@ -48,7 +48,7 @@ mat <- mat[, samples]
 
 seed <- 2782472
 #resolution <- seq(0, 2, 0.1)
-≈resolution <- (2)
+resolution <- (2)
 
 seu <- CreateSeuratObject(raw.data = mat, min.cells = 1, min.genes = 1, 
                           project = exptstr)
