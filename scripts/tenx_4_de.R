@@ -45,6 +45,9 @@ ce <- makeDendrogram(ce, reduceMethod = "var", nDims = 1000)
 de_ce <- getBestFeatures(ce, contrastType = "OneAgainstAll", whichAssay = 1, 
                          DEMethod = "limma", number = 100)
 
+rownames(se_filtered) <- rowData(se_filtered)$Symbol
+colData(ce)$batch <- colData(se_filtered)$batch
+
 save(ce, file = file.path(datdir, pasteu0(exptstr, method,
                                            opt$normalization,"res05","cmobj", format(Sys.time(), "%Y%m%d_%H%M%S"),".Rda")))
 
