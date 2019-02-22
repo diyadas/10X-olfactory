@@ -59,7 +59,7 @@ seqstr <- ifelse(opt$sequential, "seq", "noseq")
 save(cl, subsamplestr, seqstr, file = file.path(outdir, pasteu0(exptstr, opt$method, opt$normalization, "rsec",
                                                format(Sys.time(), "%Y%m%d_%H%M%S") ,".Rda")))
 
-load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
+load(file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
 se_filtered <- se_filtered[, colnames(cl)]
 colData(cl) <- DataFrame(cl@clusterMatrix, colData(cl),
 			 expt = colData(se_filtered)$expt,
