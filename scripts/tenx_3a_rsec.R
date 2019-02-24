@@ -37,14 +37,14 @@ if (method == "scone") {
 }
 seed <- 2782472
 
-cl <- RSEC(mat, k0s = seq(10, 25, by=3), alphas = c(0.1, 0.2, 0.3),
+cl <- RSEC(mat, k0s = seq(10, 25, by = 3), alphas = c(0.1, 0.2, 0.3),
                 reduceMethod = "PCA",
                 transFun = function(x) log2(x+1), # should override isCount=FALSE, or could write isCount=TRUE
                 nReducedDims = 30,
                 sequential = opt$sequential, subsample = opt$subsample,
-                subsampleArgs = list(resamp.num = 50, clusterFunction="kmeans"),
+                subsampleArgs = list(resamp.num = 50, clusterFunction = "kmeans"),
                 betas = c(0.8),
-                clusterFunction = c("hierarchical01", "tight"),  
+                clusterFunction = c("hierarchical01", "pam"),  
 		minSizes = 1,
                 ncores = ncores,
                 consensusProportion = 0.7, consensusMinSize = 10, # with sequential turned off, then consensus might result in many -1s
