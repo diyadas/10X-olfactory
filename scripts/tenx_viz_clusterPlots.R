@@ -20,7 +20,9 @@ option_list <- list(
   make_option("--clusmethod", type = "character", default = "snn",
               help = "clustering method - snn or rsec"),
   make_option("--seures", type = "character", default = "res.0.5",
-              help = "Seurat, which resolution to use for primary clustering")
+              help = "Seurat, which resolution to use for primary clustering"),
+  make_option("--samplesort", type = "character", 
+              help = "argument clusterSamplesData, i.e. dendrogramValue or primaryCluster")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -41,10 +43,12 @@ print(paste("Loading this data file: ", datfile))
 load(datfile)
 load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
 
+print(opt)
+
 if (opt$clusmethod == "snn"){
   se_filtered <- se_filtered[, colnames(seu@data)]
-  metadata <- seu@meta.data[,c(grep('^res', colnames(seu@meta.data)))]
-  counts <- 2^(seu@data)-1
+  metadata <- seu@meta.data[, c(grep("^res", colnames(seu@meta.data)))]
+  counts <- 2 ^ (seu@data) - 1
   cl <- ClusterExperiment(counts,
                           clusters = as.matrix(metadata),
                           primaryIndex = which(colnames(metadata) == opt$seures),
@@ -63,56 +67,54 @@ seed <- 2782472
 massivePalette <- massivePalette[-3]
 
 ## Set cluster legend colors
-#clusterLegend <- setNames(rep(list(bigPalette), ncol(colData(cl))), colnames(colData(cl)))
+#clusterLegend <- setNames(rep(list(massivePalette), ncol(colData(cl))), colnames(colData(cl)))
 #if (exptstr == "ob" & length(unique(colData(cl)[, 1])) < length(colRKC)) {
 #  clusterLegend <- setNames(rep(list(colRKC), ncol(colData(cl))), colnames(colData(cl)))
 #}
 
 #clusterLegend[["expt"]] <- cole
 
-markers <- intersect(unlist(read.table(file.path("../ref", opt$markerfile))), 
+markers <- intersect(unlist(read.table(file.path("../ref", opt$markerfile))),
                      rownames(cl))
 dat <- transformData(cl)
-breakv <- c(min(dat), 
-            seq(0, quantile(dat[dat > 0], .99, na.rm = TRUE), length = 50), 
+breakv <- c(min(dat),
+            seq(0, quantile(dat[dat > 0], .99, na.rm = TRUE), length = 50),
             max(dat))
 breakv <- unique(breakv)
 
-pdf(file = file.path(vizdir, 
+pdf(file = file.path(vizdir,
                      pasteu0(exptstr, "markerhm", method, opt$norm,
-                             opt$clusmethod, 
-                             format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")), 
+                             opt$clusmethod,
+                             format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")),
     width = 8.5, height = 11)
-
-plotHeatmap(cl, 
-            clusterSamplesData = "primaryCluster",
-            #clusterSamplesData = "dendrogramValue",
-            clusterFeaturesData = markers, whichClusters = "all", clusterFeatures = FALSE, 
+plotHeatmap(cl,
+            whichClusters = "all",
+            clusterSamplesData = opt$samplesort,
+            clusterFeaturesData = markers, clusterFeatures = FALSE,
             breaks = breakv, 
             #            clusterLegend = clusterLegend,
             annLegend = TRUE, overRideClusterLimit = TRUE,
             colData = which(colnames(colData(cl)) %in% c("expt", "batch")),
-            labCol=rep("",ncol(cl)) )
-
+            labCol = rep("", ncol(cl)))
 dev.off()
 
 # t-SNE colored by cluster and time point
 rtsne_fx <- function(cmobj, ngenes, perp) {
   set.seed(9887)
   genes.use <- names(vars)[1:ngenes]
-  if(opt$method == "scone"){
-    var_data <- transformData(cmobj)[genes.use,]
+  if (opt$method == "scone") {
+    var_data <- transformData(cmobj)[genes.use, ]
     tsne_data <- Rtsne(t(var_data), 
-                     perplexity = perp, max_iter = 10000)
+                       perplexity = perp, max_iter = 10000, num_threads = 0)
   } else if (opt$method == "zinb") {
     W <- cl@reducedDims$zinbwave
     tsne_data <- Rtsne(W, pca = FALSE,
-                       perplexity = perp, max_iter = 10000)
+                       perplexity = perp, max_iter = 10000, num_threads = 0)
   }
   return(tsne_data)
 }
 
-if (!is.null(cl@reducedDims$tsne)){
+if (!is.null(cl@reducedDims$tsne)) {
   print("recomputing t-SNE")
 }
 cl@reducedDims$tsne <- list()
@@ -124,7 +126,7 @@ vars <- sort(vars, decreasing = TRUE)
 
 params <- expand.grid(ngenes = ngenesvec, perp = perpvec)
 cl@reducedDims$tsne <- lapply(1:nrow(params), function(x) {
-  rtsne_fx(cl, params[x,"ngenes"], params[x,"perp"])
+  rtsne_fx(cl, params[x, "ngenes"], params[x, "perp"])
 })
 save(cl, file = datfile)
 
@@ -134,35 +136,41 @@ pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "clus",
                                      ".pdf")))
 
 lapply(1:nrow(params), function(x) {
-  ngenes = params[x,"ngenes"]
-  perp = params[x,"perp"]
+  ngenes <- params[x, "ngenes"]
+  perp <- params[x, "perp"]
   
   plot(cl@reducedDims$tsne[[x]]$Y, pch = 19, cex = 0.4, 
-       col = alpha(bigPalette[factor(primaryCluster(cl))], 0.3), 
+       col = alpha(massivePalette[factor(primaryCluster(cl))], 0.3), 
        xlab = "TSNE 1", ylab = "TSNE 2", 
-       main = paste("cluster,", ngenes, "genes, perplexity =", perp))
+       main = paste("cluster:", ngenes, "genes, perplexity =", perp))
   legend("topleft", legend = levels(factor(primaryCluster(cl))), 
-                                    fill = bigPalette, cex = 0.5)
+         fill = massivePalette, cex = 0.5)
   batch <- factor(colData(cl)$batch)
   expt <- factor(colData(cl)$expt)
   
-  plot(cl@reducedDims$tsne[[x]]$Y, pch = 19, cex = 0.4, 
-       col = alpha(bigPalette[expt], 0.3), xlab = "TSNE 1", ylab =" TSNE 2", 
-       main = paste("expt," ngenes, "genes, perplexity =", perp))
-  legend("bottomleft", legend = levels(expt), fill = bigPalette, cex = 0.6)
+  if (nlevels(expt) > 1) {
+    plot(cl@reducedDims$tsne[[x]]$Y, pch = 19, cex = 0.4, 
+         col = alpha(massivePalette[expt], 0.3), 
+         xlab = "TSNE 1", ylab = "TSNE 2", 
+         main = paste("expt:", ngenes, "genes, perplexity =", perp))
+    legend("bottomleft", legend = levels(expt), fill = massivePalette, cex = 0.6)
+  }
   
-  plot(cl@reducedDims$tsne[[x]]$Y, pch = 19, cex = 0.4, 
-       col = alpha(bigPalette[batch], 0.3), xlab = "TSNE 1", ylab =" TSNE 2", 
-       main = paste("batch," ngenes, "genes, perplexity =", perp))
-  legend("bottomleft", legend = levels(batch), fill = bigPalette, cex = 0.6)
+  if (nlevels(batch) > 1) {
+    plot(cl@reducedDims$tsne[[x]]$Y, pch = 19, cex = 0.4, 
+         col = alpha(massivePalette[batch], 0.3), 
+         xlab = "TSNE 1", ylab = "TSNE 2", 
+         main = paste("batch:", ngenes, "genes, perplexity =", perp))
+    legend("bottomleft", legend = levels(batch), fill = massivePalette, cex = 0.6)
+  }
   
-  dat <- data.frame(cl@reducedDims$tsne[[x]]$Y, t(transformData(cl)[markers,]))
-  par(mar=c(2,2,1,1), mfrow=c(1,1))
-  for (gene in markers){
-     p <- ggplot(dat, aes_string("X1", "X2", colour = gene)) + geom_point(cex=0.5)
-     print(p + t1 +
-             scale_colour_gradient2(low = "#053061", mid = "grey95", high = "#67001F") +
-             ggtitle(gene))
+  dat <- data.frame(cl@reducedDims$tsne[[x]]$Y, t(transformData(cl)[markers, ]))
+  par(mar = c(2, 2, 1, 1), mfrow = c(1, 1))
+  for (gene in markers) {
+    p <- ggplot(dat, aes_string("X1", "X2", colour = gene)) + geom_point(cex= 0.5)
+    print(p + t1 +
+            scale_colour_gradient2(low = "#053061", mid = "grey95", high = "#67001F") +
+            ggtitle(gene))
   }
   
 })
