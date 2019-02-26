@@ -1,3 +1,4 @@
+library(ggplot2)
 pal <- clusterExperiment::bigPalette
 colb <- c("dodgerblue3", "darkviolet", "goldenrod", "chartreuse3", "cadetblue2", "magenta", "chocolate1", "forestgreen", "plum", "azure3", "chocolate4", "darkslategray", "cornsilk", "aquamarine3", "burlywood3", "darkblue", "gray45")
 cole <- c("cornflowerblue", "darkgoldenrod", "darkorchid", "darkorange2", "deeppink3", "cadetblue1", "azure4", "darkslateblue", "darkolivegreen1", "antiquewhite2")
@@ -5,6 +6,17 @@ colRKC<- c("chartreuse3", "firebrick3", "chocolate4","slategray2","darkviolet",
           "darkorange2","pink", "gold", "deepskyblue", "pink3", 
           "deeppink", "grey36", "royalblue3", "mediumorchid1","grey0", 
           "cyan2", "darkseagreen4")
+t1 <- theme(plot.background = element_blank(), 
+                     panel.grid.minor = element_blank(), 
+                     panel.background = element_blank(),
+                     axis.ticks = element_blank(), 
+                     legend.background = element_blank(), 
+                     axis.text.x = element_blank(), 
+                     axis.text.y = element_blank(),
+                     legend.key = element_rect(fill="white"), 
+                     panel.border = element_rect(fill = NA,colour = "black"),
+                     axis.line = element_blank(),
+                     aspect.ratio = 1)
 
 
 pasteu <- function(...) paste(..., sep = "_")

@@ -96,8 +96,6 @@ plotHeatmap(cl,
 dev.off()
 
 # t-SNE colored by cluster and time point
-cl@reducedDims$tsne
-
 rtsne_fx <- function(cmobj, ngenes, perp) {
   set.seed(9887)
   genes.use <- names(vars)[1:ngenes]
@@ -121,9 +119,12 @@ params <- expand.grid(ngenes = ngenesvec, perp = perpvec)
 cl@reducedDims$tsne <- lapply(1:nrow(params), function(x) {
   rtsne_fx(cl, params[x,"ngenes"], params[x,"perp"])
 })
+save(cl, file = datfile)
 
-pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", ngenes, "p", perp, "clus", 
-                                     method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
+pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "clus", 
+                                     method, opt$norm, 
+                                     format(Sys.time(), "%Y%m%d_%H%M%S"), 
+                                     ".pdf")))
 
 lapply(1:nrow(params), function(x) {
   ngenes = params[x,"ngenes"]
@@ -147,6 +148,16 @@ lapply(1:nrow(params), function(x) {
        col = alpha(bigPalette[batch], 0.3), xlab = "TSNE 1", ylab =" TSNE 2", 
        main = paste("batch," ngenes, "genes, perplexity =", perp))
   legend("bottomleft", legend = levels(batch), fill = bigPalette, cex = 0.6)
+  
+  dat <- data.frame(cl@reducedDims$tsne[[x]]$Y, t(transformData(cl)[markers,]))
+  par(mar=c(2,2,1,1), mfrow=c(1,1))
+  for (gene in markers){
+     p <- ggplot(dat, aes_string("X1", "X2", colour = gene)) + geom_point(cex=0.5)
+     print(p + t1 +
+             scale_colour_gradient2(low = "#053061", mid = "grey95", high = "#67001F") +
+             ggtitle(gene))
+  }
+  
 })
 dev.off()
   
@@ -162,15 +173,7 @@ dev.off()
   
   
   # pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "geneexp", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
-  # t1 <- theme(plot.background=element_blank(), panel.grid.minor=element_blank(), panel.background=element_blank(),axis.ticks=element_blank(), legend.background=element_blank(), axis.text.x=element_blank(), axis.text.y=element_blank(),legend.key= element_rect(fill="white"), panel.border = element_rect(fill=NA,colour = "black"),axis.line=element_blank(),aspect.ratio=1)
-  # dat <- data.frame(seu@dr$tsne@cell.embeddings, t(seu@data[markers,]))
-  # par(mar=c(2,2,1,1), mfrow=c(1,1))
-  # for (gene in markers){
-  #   p <- ggplot(dat, aes_string("tSNE_1", "tSNE_2", colour = gene)) + geom_point(cex=0.5)
-  #   print(p + t1 +
-  #           scale_colour_gradient2(low = "#053061", mid = "grey95", high = "#67001F") +
-  #           ggtitle(gene))
-  # }
-  
+  # 
+
 })
 # dev.off()
