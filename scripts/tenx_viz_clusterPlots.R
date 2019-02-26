@@ -128,7 +128,7 @@ params <- expand.grid(ngenes = ngenesvec, perp = perpvec)
 cl@reducedDims$tsne <- lapply(1:nrow(params), function(x) {
   rtsne_fx(cl, params[x, "ngenes"], params[x, "perp"])
 })
-save(cl, file = datfile)
+save(cl, file = gsub(".Rda", "_viz.Rda", datfile))
 
 pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "clus", 
                                      method, opt$norm, 
