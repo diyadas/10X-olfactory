@@ -53,6 +53,7 @@ if (opt$clusmethod == "snn"){
                          batch = colData(se_filtered)$batch,  
                          samples = colnames(seu@data))
   colData(cl) <- DataFrame(metadata)
+  if (opt$method == "zinb") reducedDim(cl, "zinbwave") <- seu@dr$zinbwave@cell.embeddings
 }
 
 
@@ -99,9 +100,15 @@ dev.off()
 rtsne_fx <- function(cmobj, ngenes, perp) {
   set.seed(9887)
   genes.use <- names(vars)[1:ngenes]
-  var_data <- transformData(cmobj)[genes.use,]
-  tsne_data <- Rtsne(t(var_data), 
+  if(opt$method == "scone"){
+    var_data <- transformData(cmobj)[genes.use,]
+    tsne_data <- Rtsne(t(var_data), 
                      perplexity = perp, max_iter = 10000)
+  } else if (opt$method == "zinb") {
+    W <- cl@reducedDims$zinbwave
+    tsne_data <- Rtsne(W, pca = FALSE,
+                       perplexity = perp, max_iter = 10000)
+  }
   return(tsne_data)
 }
 
@@ -160,20 +167,3 @@ lapply(1:nrow(params), function(x) {
   
 })
 dev.off()
-  
-  #     } else if (method == "zinb"){
-  #       seu <- RunTSNE(seu, reduction.use = "zinbwave", dims.use = 1:20,
-  #                      genes.use = genes.use, seed.use = seed, tsne.method = "Rtsne", 
-  #                      perplexity = 10, max_iter = 10000,
-  #                      dim.embed = 2, reduction.name = "tsne")
-  #     }
-  #     save(seu, file = datfile)
-  #   }}
-  
-  
-  
-  # pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "geneexp", method, opt$norm, format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")))
-  # 
-
-})
-# dev.off()
