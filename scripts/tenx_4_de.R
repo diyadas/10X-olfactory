@@ -36,7 +36,7 @@ metadata <- data.frame(seu@meta.data, expt = colData(se_filtered)$expt,
                       samples = colnames(seu@data), row.names = "samples")
 metadata <- metadata[colnames(seu@raw.data),]
 
-ce <- ClusterExperiment(seu@raw.data, clusters = metadata[,"res.0.5"], 
+ce <- ClusterExperiment(seu@raw.data, clusters = seu@meta.data[,"res.0.5"], 
                         transformation = function(x) log2(x + 1))
 colData(ce) <- DataFrame(metadata)
 
@@ -44,6 +44,9 @@ ce <- makeDendrogram(ce, reduceMethod = "var", nDims = 1000)
 
 de_ce <- getBestFeatures(ce, contrastType = "OneAgainstAll", whichAssay = 1, 
                          DEMethod = "limma", number = 100)
+
+rownames(se_filtered) <- rowData(se_filtered)$Symbol
+colData(ce)$batch <- colData(se_filtered)$batch
 
 save(ce, file = file.path(datdir, pasteu0(exptstr, method,
                                            opt$normalization,"res05","cmobj", format(Sys.time(), "%Y%m%d_%H%M%S"),".Rda")))

@@ -59,7 +59,7 @@ if (opt$clusmethod == "snn"){
 seed <- 2782472
 
 # Plot marker gene heatmap
-bigPalette <- bigPalette[-3]
+massivePalette <- massivePalette[-3]
 
 ## Set cluster legend colors
 #clusterLegend <- setNames(rep(list(bigPalette), ncol(colData(cl))), colnames(colData(cl)))
@@ -83,12 +83,16 @@ pdf(file = file.path(vizdir,
                              format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")), 
     width = 8.5, height = 11)
 
-plotHeatmap(cl, clusterSamplesData = "primaryCluster",
+plotHeatmap(cl, 
+            clusterSamplesData = "primaryCluster",
+            #clusterSamplesData = "dendrogramValue",
             clusterFeaturesData = markers, whichClusters = "all", clusterFeatures = FALSE, 
             breaks = breakv, 
             #            clusterLegend = clusterLegend,
             annLegend = TRUE, overRideClusterLimit = TRUE,
-            colData = which(colnames(colData(cl)) %in% c("expt", "batch")))
+            colData = which(colnames(colData(cl)) %in% c("expt", "batch")),
+            labCol=rep("",ncol(cl)) )
+
 dev.off()
 
 # t-SNE colored by cluster and time point
