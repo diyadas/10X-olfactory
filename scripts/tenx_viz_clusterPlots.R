@@ -126,6 +126,7 @@ vars <- sort(vars, decreasing = TRUE)
 
 params <- expand.grid(ngenes = ngenesvec, perp = perpvec)
 cl@reducedDims$tsne <- lapply(1:nrow(params), function(x) {
+  message(params[x,])
   rtsne_fx(cl, params[x, "ngenes"], params[x, "perp"])
 })
 save(cl, file = gsub(".Rda", "_viz.Rda", datfile))
