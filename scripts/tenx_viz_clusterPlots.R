@@ -47,7 +47,7 @@ print(opt)
 
 if (opt$clusmethod == "snn"){
   se_filtered <- se_filtered[, colnames(seu@data)]
-  metadata <- seu@meta.data[, c(grep("^res", colnames(seu@meta.data)))]
+  metadata <- seu@meta.data[, c(grep("^res", colnames(seu@meta.data))), drop = FALSE]
   counts <- 2 ^ (seu@data) - 1
   cl <- ClusterExperiment(counts,
                           clusters = as.matrix(metadata),
