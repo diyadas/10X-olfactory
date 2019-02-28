@@ -1,6 +1,6 @@
 # Visualization of 10X data
 # Authors: Diya Das and Rebecca Chance
-# Last revised: Wed Oct 31 09:35:01 2018
+# Last revised: Thu Feb 28 15:58:37 2019
 
 # Load command-line arguments
 library(scone)
@@ -119,26 +119,24 @@ if (!is.null(cl@reducedDims$tsne)) {
 }
 cl@reducedDims$tsne <- list()
 
-ngenesvec <- c(500, 1000, 3000, 5000, nrow(cl))
-perpvec <- seq(10, 80, 10)
+ngenesvec <- c(500, 1000, 5000, nrow(cl))
+perpvec <- seq(50, 100, 25)
 vars <- apply(transformData(cl), 1, var)
 vars <- sort(vars, decreasing = TRUE)
 
-params <- expand.grid(ngenes = ngenesvec, perp = perpvec)
+params <- expand.grid(perp = perpvec, ngenes = ngenesvec)
 cl@reducedDims$tsne <- lapply(1:nrow(params), function(x) {
   message(params[x,])
   rtsne_fx(cl, params[x, "ngenes"], params[x, "perp"])
 })
 save(cl, file = gsub(".Rda", "_viz.Rda", datfile))
 
-
-
 lapply(1:nrow(params), function(x) {
   ngenes <- params[x, "ngenes"]
   perp <- params[x, "perp"]
   
   pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", ngenes, perp,
-                                       method, opt$norm, 
+                                       method, opt$clusmethod, opt$norm, 
                                        format(Sys.time(), "%Y%m%d_%H%M%S"), 
                                        ".pdf")))
   
