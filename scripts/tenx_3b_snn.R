@@ -37,7 +37,7 @@ load(file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
 samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
 
 load(file.path(outdir, pasteu(exptstr, "scone", opt$normalization, "data.Rda")))
-mat <- get_normalized(scone_obj, opt$normalization)
+mat <- get_normalized(scone_obj, opt$normalization, log = FALSE)
 mat <- log2(mat + 1)
 #rownames(mat)  <- unique(rownames(mat))
 mat <- uniquecombs(mat,ordered=FALSE)
