@@ -131,14 +131,16 @@ cl@reducedDims$tsne <- lapply(1:nrow(params), function(x) {
 })
 save(cl, file = gsub(".Rda", "_viz.Rda", datfile))
 
-pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", "clus", 
-                                     method, opt$norm, 
-                                     format(Sys.time(), "%Y%m%d_%H%M%S"), 
-                                     ".pdf")))
+
 
 lapply(1:nrow(params), function(x) {
   ngenes <- params[x, "ngenes"]
   perp <- params[x, "perp"]
+  
+  pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", ngenes, perp,
+                                       method, opt$norm, 
+                                       format(Sys.time(), "%Y%m%d_%H%M%S"), 
+                                       ".pdf")))
   
   plot(cl@reducedDims$tsne[[x]]$Y, pch = 19, cex = 0.4, 
        col = alpha(massivePalette[factor(primaryCluster(cl))], 0.3), 
@@ -173,6 +175,6 @@ lapply(1:nrow(params), function(x) {
             scale_colour_gradient2(low = "#053061", mid = "grey95", high = "#67001F") +
             ggtitle(gene))
   }
-  
+  dev.off()
 })
-dev.off()
+
