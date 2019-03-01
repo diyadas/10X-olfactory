@@ -1,6 +1,6 @@
 # Filtering of 10X data
 # Authors: Russell Fletcher, Diya Das, and Rebecca Chance
-# Last revised: Tue Jun 19 11:54:38 2018
+# Last revised: Fri Mar  1 10:57:19 2019
 
 # Load command-line arguments
 rm(list = ls())
@@ -28,16 +28,19 @@ option_list <- list(
 	      QC metrics have not previously been calculated"),
   make_option("--fast", default = FALSE, type = "logical",
   	      help = "whether to use fast (approximate) PCA"),
-  make_option("--exclude", default=NULL, type="character", help="name for excluded samples, if given")
+  make_option("--exclude", default = NULL, type="character", help = "name for excluded samples, if given")
   )
 opt <- parse_args(OptionParser(option_list = option_list))
+
+print(opt)
+
 exptstr <- opt$expt
-outdir <- file.path("../output", exptstr, "data")
+datdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz", "prenormalization")
 crdir <- file.path("../output", exptstr, "crcount")
 exptinfo <- read.csv(file.path("../output", exptstr, opt$exptinfo),
                      stringsAsFactors = FALSE)
-system(paste("mkdir -p", c(outdir, vizdir)))
+system(paste("mkdir -p", c(datdir, vizdir)))
 
 # Set up packages and parallel environment
 library(BiocParallel)
@@ -71,8 +74,14 @@ se <- SummarizedExperiment(list(counts = counts),
                            colData = data.frame(batch = batch, expt = expt))
 excluded_samples_list <- NULL
 if (!is.null(opt$exclude)){
-  excluded_samples_list <<- load(paste0("../ref/",exptstr,"_",opt$exclude,"_exclude.Rda"))
+  excluded_samples_list <<- load(paste0("../ref/", 
+                                        exptstr, "_", opt$exclude,
+                                        "_exclude.Rda"))
   message("using sample to exclude list")
+  idfiltstr <- NULL
+} else {
+  message("no exclude list given! remember to run this again with a list of biological contaminants!")
+  idfiltstr <- "idfiltno"
 }
 
 message(paste("Dimensions:", dim(se)[1], "genes,", dim(se)[2], "samples"))
@@ -98,7 +107,7 @@ rowData(se) <- genes
 rownames(se) <- rowData(se)$Symbol
 
 # Exploratory Data Analysis
-pdf(file = file.path(vizdir, pasteu(exptstr, "EDA_prefilt.pdf")),
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_EDA_prefilt", idfiltstr, ".pdf")),
     height = 11, width = 8.5)
 detectedgeneplot(se, "Pre-filtering\n") # function in helper script
 dev.off()
@@ -138,7 +147,7 @@ if (runQC) {
                   	     ribo_pct = ribo_pct))
   qcpca <- prcomp(qc, scale. = TRUE)
  
- pdf(file = file.path(vizdir, pasteu(exptstr, "mitoribo_prefilt.pdf")),
+ pdf(file = file.path(vizdir, pasteu0(exptstr, "1_mitoribo_prefilt", idfiltstr, ".pdf")),
     height = 11, width = 8.5)
 plot(qc[,"mito_pct"], col = colb[colData(se)$batch], xlab = "cell index",
      main = "% mito (Mt*) genes")
@@ -157,7 +166,7 @@ print(paste("Percent total variance captured in first 10 expression PCs is",
   round(cumsum(pca$sdev ^ 2 / sum(pca$sdev ^ 2))[10] * 100, digits = 2)
 ))
 
-pdf(file = file.path(vizdir, pasteu(exptstr, "QCpca_prefilt.pdf")),
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_QCpca_prefilt", idfiltstr, ".pdf")),
     height = 11, width = 8.5)
 screeplot(pca, type = "lines", npcs = 50, main = "Expression PCA screeplot")
 screeplot(qcpca, type = "lines", main = "QC-PCA screeplot")
@@ -183,9 +192,9 @@ for (feature in
 dev.off()
  
   save(se, sce, qc, pca, qcpca,
-       file = file.path(outdir, pasteu(exptstr, "prefilt.Rda")))
+       file = file.path(datdir, pasteu0(exptstr, "1_prefilt", idfiltstr, ".Rda")))
 } else {
-  load(file.path(outdir, pasteu(exptstr, "prefilt.Rda")))
+  load(file.path(datdir, pasteu0(exptstr, "1_prefilt", idfiltstr, ".Rda")))
 }
 
 # ---- Filtering ----
@@ -207,7 +216,7 @@ hk <- as.character(unlist(read.table(opt$hkfile)))
 }
 hk <- intersect(hk, rowData(se)$Symbol)
 
-pdf(file = file.path(vizdir, pasteu(exptstr, "msf_prefilt.pdf")),
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_msf_prefilt", idfiltstr, ".pdf")),
     title = "metric_sample_filtering")
 mfilt <- metric_sample_filter(
   assay(se),
@@ -258,7 +267,7 @@ batch <- colData(se_filtered)$batch
 expt <- colData(se_filtered)$expt
 
 # Check for batch effects prior to normalization
-pdf(file = file.path(vizdir, pasteu(exptstr, "batchchk_prefilt.pdf")))
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_batchchk_prefilt", idfiltstr, ".pdf")))
 plot(pca$x, pch = 19, col = colb[colData(se)$batch], 
      main = "PCA Color-coded by batch, Pre-filtering")
 legend("topleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.6)
@@ -298,7 +307,7 @@ counts_filtered <- assay(se_filtered)
 logcounts_filtered <- log2(counts_filtered + 1) 
 
 controlheatmaps <- function(controllist, se_filtered){
-  pdf(file = file.path(vizdir, pasteu(exptstr, controllist, "heatmap.pdf")))
+  pdf(file = file.path(vizdir, pasteu0(exptstr, "1", controllist, "heatmap", idfiltstr, ".pdf")))
   plotHeatmap(logcounts_filtered[rowData(se_filtered)[[controllist]], ],
               colData = data.frame(expt = colData(se_filtered)$expt, 
                                       batch = colData(se_filtered)$batch),
@@ -319,7 +328,7 @@ bars <- data.frame(
   Dimension = as.factor(rep(paste0("PC", 1:5), each = ncol(qc)))
 )
 
-pdf(file = file.path(vizdir, pasteu(exptstr, "cor_qc_exprPCA.pdf")))
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_cor_qc_exprPCA", idfiltstr, ".pdf")))
   ggplot(bars, aes(Dimension, AbsoluteCorrelation, group = QC, fill = QC)) +
   geom_bar(stat = "identity", position = 'dodge') +
   scale_fill_manual(values = bigPalette) + ylim(0, 1) +
@@ -328,6 +337,6 @@ dev.off()
 
 # ---- Save output ----
 save(qc, pca, se_filtered, batch, expt,
-     file = file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
+     file = file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
 save(counts_filtered, logcounts_filtered,
-     file = file.path(outdir, pasteu(exptstr, "counts_filtered.Rda"))) 
+     file = file.path(datdir, pasteu0(exptstr, "1_counts_filtqc", idfiltstr, ".Rda"))) 

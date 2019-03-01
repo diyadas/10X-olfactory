@@ -1,3 +1,7 @@
+# Helper functions for normalization of 10X data
+# Authors: Diya Das and Rebecca Chance
+# Last revised: Fri Mar  1 10:58:06 2019
+
 library(ggplot2)
 pal <- clusterExperiment::bigPalette
 colb <- c("dodgerblue3", "darkviolet", "goldenrod", "chartreuse3", "cadetblue2", "magenta", "chocolate1", "forestgreen", "plum", "azure3", "chocolate4", "darkslategray", "cornsilk", "aquamarine3", "burlywood3", "darkblue", "gray45")
@@ -20,9 +24,9 @@ t1 <- theme(plot.background = element_blank(),
 
 
 pasteu <- function(...) paste(..., sep = "_")
-pasteu0 <- function(...){
+pasteu0 <- function(...) {
   tmp <- pasteu(...)
-  stringi::stri_replace_last_fixed(tmp, "_.", ".")
+  stringi::stri_replace_last_regex(tmp, "__.|_.", ".")
 }
 
 fastpca <- function(expr, scale = FALSE) {
@@ -77,7 +81,8 @@ rmblank <- function(input_filepath){
 
 last_datfile <-	function(datdir, exptstr, method, norm, clusmethod){
    datfiles <<- list.files(path = datdir,
-                           pattern = pasteu(exptstr, method, norm, clusmethod), full.names = TRUE)
+                           pattern = pasteu(exptstr, method, norm, clusmethod),
+                           full.names = TRUE)
    datfile <- datfiles[length(datfiles)]
    print(paste("Loading this data file: ", datfile))
 }
