@@ -125,15 +125,11 @@ vars <- apply(transformData(cl), 1, var)
 vars <- sort(vars, decreasing = TRUE)
 
 params <- expand.grid(perp = perpvec, ngenes = ngenesvec)
-cl@reducedDims$tsne <- lapply(1:nrow(params), function(x) {
-  message(params[x,])
-  rtsne_fx(cl, params[x, "ngenes"], params[x, "perp"])
-})
-save(cl, file = gsub(".Rda", "_viz.Rda", datfile))
-
 lapply(1:nrow(params), function(x) {
+  message(params[x,])
   ngenes <- params[x, "ngenes"]
   perp <- params[x, "perp"]
+  cl@reducedDims$tsne[[x]] <- rtsne_fx(cl, ngenes, perp)
   
   pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", ngenes, perp,
                                        method, opt$clusmethod, opt$norm, 
@@ -174,5 +170,7 @@ lapply(1:nrow(params), function(x) {
             ggtitle(gene))
   }
   dev.off()
+  
 })
 
+save(cl, file = gsub(".Rda", "_viz.Rda", datfile))
