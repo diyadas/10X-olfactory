@@ -86,3 +86,46 @@ last_datfile <-	function(datdir, exptstr, method, norm, clusmethod){
    datfile <- datfiles[length(datfiles)]
    print(paste("Loading this data file: ", datfile))
 }
+
+showPalette <- function (colPalette = bigPalette, which = NULL, cex = 1) {
+  oldPar <- par(no.readonly = TRUE)
+  wh <- which
+  if (is.null(wh)) {
+    wh <- seq_along(colPalette)
+  }
+  else {
+    colPalette <- colPalette[wh]
+  }
+  n <- ceiling(sqrt(length(colPalette)))
+  nblank <- n^2 - length(colPalette)
+  xwide <- n
+  yup <- n
+  x1 <- rep(c(seq_len(xwide)) - 0.5, yup)
+  x2 <- rep(c(seq_len(xwide)) + 0.5, yup)
+  xtext <- rep(c(seq_len(xwide)), yup)
+  ycolor1 <- rev(rep(seq(1, yup * 2, by = 2) - 0.5, each = xwide))
+  ycolor2 <- rev(rep(seq(1, yup * 2, by = 2) + 0.5, each = xwide))
+  ytext <- rev(rep(seq(2, yup * 2, by = 2) + 0.5, each = xwide))
+  par(mar = c(0, 0, 0, 0), omi = c(0, 0, 0, 0))
+  plot.new()
+  plot.window(xlim = c(0.5, xwide + 0.5), ylim = c(0.5, (yup * 
+                                                           2) + 0.5))
+  rect(x1, ycolor1, x2, ycolor2, col = c(colPalette, rep("white", 
+                                                         nblank)), border = FALSE)
+  if (length(colPalette) > 100) {
+    half <- ceiling(length(colPalette)/2)
+    adj.text <- cbind(rep(0.5, half * 2), rep(c(0, 1), times = half))
+    adj.text <- adj.text[seq_along(colPalette), ]
+  } else {
+    adj.text <- matrix(c(0.5, 0), nrow = length(colPalette), 
+                       ncol = 2, byrow = TRUE)
+  }
+  for (i in seq_along(colPalette)) {
+    text(xtext[i], ytext[i] - 1, colPalette[i], cex = cex, 
+         adj = adj.text[i, ])
+    if (length(colPalette) <= 100) 
+      text(xtext[i], ytext[i] - 2, wh[i], cex = cex, adj = c(0.5, 
+                                                             1))
+  }
+  par(oldPar)
+}
