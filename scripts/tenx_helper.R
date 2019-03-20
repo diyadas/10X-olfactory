@@ -129,3 +129,12 @@ showPalette <- function (colPalette = bigPalette, which = NULL, cex = 1) {
   }
   par(oldPar)
 }
+
+recolorMassive <- function(ce){
+  for (x in colnames(ce@clusterMatrix)){
+    ce <- recolorClusters(ce, massivePalette[1:length(unique(ce@clusterMatrix[,x]))], whichCluster = x, "name")
+  }
+  return(ce)
+}
+
+
