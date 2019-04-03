@@ -215,7 +215,9 @@ mfilt <- metric_sample_filter(
   gene_filter = is_common,
   pos_controls = hk,
   hard_nreads = 2000,
-  zcut = 3,
+  zcut = 4, #changed from 3 2.26.19
+  hard_ralign=85, #added 2.26.19
+  suff_ralign=NULL,
   mixture = FALSE,
   plot = TRUE
 )
