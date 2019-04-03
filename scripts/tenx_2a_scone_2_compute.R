@@ -17,9 +17,7 @@ exptstr <- opt$expt
 outdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz")
 
-print(opt$expt)
-print(opt$ncores)
-print(opt$normalization)
+print(opt)
 
 # Set up packages and parallel environment
 library(BiocParallel)
