@@ -28,7 +28,7 @@ option_list <- list(
 	      QC metrics have not previously been calculated"),
   make_option("--fast", default = FALSE, type = "logical",
   	      help = "whether to use fast (approximate) PCA"),
-  make_option("--exclude", default = NULL, type="character", help = "name for excluded samples, if given")
+  make_option("--exclude", default = "", type="character", help = "name for excluded samples, if given")
   )
 opt <- parse_args(OptionParser(option_list = option_list))
 
@@ -40,7 +40,7 @@ vizdir <- file.path("../output", exptstr, "viz", "prenormalization")
 crdir <- file.path("../output", exptstr, "crcount")
 exptinfo <- read.csv(file.path("../output", exptstr, opt$exptinfo),
                      stringsAsFactors = FALSE)
-system(paste("mkdir -p", c(datdir, vizdir)))
+system(paste("mkdir -p", datdir, vizdir))
 
 # Set up packages and parallel environment
 library(BiocParallel)
@@ -73,7 +73,7 @@ counts <- as.matrix(exprs(load_cellranger_matrix(file.path(crdir, opt$aggr))))
 se <- SummarizedExperiment(list(counts = counts), 
                            colData = data.frame(batch = batch, expt = expt))
 excluded_samples_list <- NULL
-if (!is.null(opt$exclude)){
+if (length(opt$exclude)==0){
   excluded_samples_list <<- load(paste0("../ref/", 
                                         exptstr, "_", opt$exclude,
                                         "_exclude.Rda"))
