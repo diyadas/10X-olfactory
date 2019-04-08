@@ -8,6 +8,7 @@ library(BiocParallel)
 library(optparse)
 library(Rtsne)
 library(clusterExperiment)
+library(dplyr)
 
 option_list <- list(
   make_option("--expt", default = "", type = "character", help = "Experiment ID"),
