@@ -36,8 +36,8 @@ register(MulticoreParam(workers = opt$ncores))
 source("tenx_helper.R")
 
 datfiles <<- list.files(path = datdir, 
-                        pattern = pasteu(exptstr, "scone", opt$normalization), 
-                        "data", idfiltstr,
+                        pattern = pasteu(exptstr, "scone", opt$normalization,
+                                         "data", idfiltstr),
                         full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
