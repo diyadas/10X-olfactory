@@ -91,7 +91,10 @@ rtsne_fx <- function(logcounts, ngenes, perp) {
 vars <- apply(logcounts, 1, var)
 vars <- sort(vars, decreasing = TRUE)
 
-tsne_data <- rtsne_fx(logcounts, ngenes = 500, perp = 80)
+ngenes <- 500
+perp <- 80
+
+tsne_data <- rtsne_fx(logcounts, ngenes = ngenes, perp = perp)
 
 pdf(file = file.path(vizdir, pasteu0(exptstr, "EDA", "tsne", ngenes, perp,
                                        "scone", opt$normalization, 
