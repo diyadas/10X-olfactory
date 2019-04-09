@@ -99,7 +99,8 @@ tsne_data <- rtsne_fx(logcounts, ngenes = ngenes, perp = perp)
 pdf(file = file.path(vizdir, pasteu0(exptstr, "EDA", "tsne", ngenes, perp,
                                        "scone", opt$normalization, 
                                        format(Sys.time(), "%Y%m%d_%H%M%S"), 
-                                       ".pdf")))
+                                       ".pdf")),
+      width = 8.5, height = 11)
 if (nlevels(expt) > 1) {
     plot(tsne_data$Y, pch = 19, cex = 0.4, 
          col = alpha(massivePalette[mycoldata$expt], 0.3), 
