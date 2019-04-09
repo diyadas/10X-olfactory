@@ -10,9 +10,10 @@ option_list <- list(
   make_option("--expt", type = "character", help = "Experiment ID"),
   make_option("--ncores", default = "1", type = "double"),
   make_option("--subsample", default = TRUE, type = "logical"),
-  make_option("--idfilt", type = "logical", help = "logical, has sample ID filtering been performed?")
+  make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?")
 )
 opt <- parse_args(OptionParser(option_list = option_list))
+print(opt)
 exptstr <- opt$expt
 datdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz")
