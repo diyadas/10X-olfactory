@@ -9,16 +9,25 @@
 #
 
 ncores=$1
-expt="cortex"
-aggr="Rbp4AB"
-exptinfo="cortex_exptinfo.csv"
+#expt="cortex"
+#aggr="Rbp4AB"
+#exptinfo="cortex_exptinfo.csv"
+#posctrlfile="../ref/cortexgenes.txt"
+
+
+expt="ob"
+aggr="RCOB2AB567"
+exptinfo="rcob_exptinfo.csv"
+posctrlfile="../ref/OBmarkers.txt"
+
 hkfile="hkpackage"
-posctrlfile="../ref/cortexgenes.txt"
+
 runQC="TRUE"
 exclude=""
 
-NOW=$(date +"_%Y%m%d-%H%M%S")
-LOG="logs/${expt}_tenx_1_filtering${NOW}.Rout"
+job=$(basename "$0")
+NOW=$(date +"%Y%m%d-%H%M%S")
+LOG="logs/${expt}_1_filtering_${job}_${NOW}.Rout"
 exec >> "$LOG" 2>&1 || exit 1     # redirect stdout and error to log file, will fail if the logs directory doesn't exist
 
 # as refactored by JW Adams from last commit
@@ -32,7 +41,7 @@ run() {
 }
 
 usage() {
-       echo "usage: $0 ncores" >&2
+       echo "usage: tenx_1_filtering.sh ncores" >&2
        exit 2
 }
 
