@@ -70,7 +70,7 @@ pdf(file = file.path(vizdir,
     width = 8.5, height = 11)
 plotHeatmap(logcounts[markers,],
             clusterFeatures = FALSE,
-            clusterSamples = FALSE, breaks = breakv,
+            clusterSamples = TRUE, breaks = breakv,
             annLegend = TRUE, overRideClusterLimit = TRUE,
             clusterLegend = list(expt = massivePalette[1:nlevels(mycoldata$expt)], 
                                  batch = massivePalette[1:nlevels(mycoldata$batch)]),
