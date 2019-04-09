@@ -52,7 +52,7 @@ seed <- 2782472
 massivePalette <- massivePalette[-3]
 
 mycoldata <- data.frame(colData(scone_obj), samples = colnames(scone_obj)) %>% arrange(expt, batch)
-scone_obj <- scone_obj[, mycoldata$scone_obj]
+scone_obj <- scone_obj[, mycoldata$samples]
 
 markers <- intersect(unlist(read.table(file.path("../ref", opt$markerfile))),
                      rownames(scone_obj))
