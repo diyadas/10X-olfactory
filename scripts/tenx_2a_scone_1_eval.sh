@@ -9,12 +9,13 @@
 #
 
 ncores=$1
-expt="cortex"
-#expt="ob"
+#expt="cortex"
+expt="ob"
+idfilt="FALSE"
 
-script=$(basename "$0" .sh)
+job=$(basename "$0")
 NOW=$(date +"%Y%m%d-%H%M%S")
-LOG="logs/${expt}_${script}_${NOW}.Rout"
+LOG="logs/${expt}_2a_scone_1_eval_${job}_${NOW}.Rout"
 exec >> "$LOG" 2>&1 || exit 1     # redirect stdout and error to log file, will fail if the logs directory doesn't exist
 
 # as refactored by JW Adams from last commit
@@ -28,7 +29,7 @@ run() {
 }
 
 usage() {
-       echo "usage: $0 ncores" >&2
+       echo "usage: tenx_2a_scone_1_eval.sh ncores" >&2
        exit 2
 }
 
@@ -36,7 +37,7 @@ usage() {
 
 run tenx_2a_scone_1_eval.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \
-       --expt "$expt" --ncores "$ncores" 
+       --expt "$expt" --ncores "$ncores" --idfilt "$idfilt" 
 
 
 #R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_2a_scone_1_eval.R --args --expt regen --ncores $ncores --subsample TRUE > 'tenx_2a_scone_1_eval'$NOW'.Rout' 2>&1
