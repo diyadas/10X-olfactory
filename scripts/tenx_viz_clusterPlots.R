@@ -65,14 +65,7 @@ seed <- 2782472
 
 # Plot marker gene heatmap
 massivePalette <- massivePalette[-3]
-
-## Set cluster legend colors
-#clusterLegend <- setNames(rep(list(massivePalette), ncol(colData(cl))), colnames(colData(cl)))
-#if (exptstr == "ob" & length(unique(colData(cl)[, 1])) < length(colRKC)) {
-#  clusterLegend <- setNames(rep(list(colRKC), ncol(colData(cl))), colnames(colData(cl)))
-#}
-
-#clusterLegend[["expt"]] <- cole
+cl <- recolorMassive(cl)
 
 markers <- intersect(unlist(read.table(file.path("../ref", opt$markerfile))),
                      rownames(cl))
