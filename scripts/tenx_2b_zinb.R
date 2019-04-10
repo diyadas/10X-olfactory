@@ -10,7 +10,9 @@ option_list <- list(
   make_option("--expt", type = "character", help = "Experiment ID"),
   make_option("--ncores", default = "1", type = "double")
 )
+
 opt <- parse_args(OptionParser(option_list = option_list))
+print(opt)
 exptstr <- opt$expt
 outdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz")

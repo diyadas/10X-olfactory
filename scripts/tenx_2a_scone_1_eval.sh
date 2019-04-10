@@ -35,6 +35,8 @@ usage() {
 
 [[ $# -eq 1 ]] || usage  # fail if incorrect number of args and print usage info
 
+while true; do free -h >> 'tenx_2a_scone_1_eval_'$NOW'_memory.out'; sleep 15; done &
+
 run tenx_2a_scone_1_eval.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \
        --expt "$expt" --ncores "$ncores" --idfilt "$idfilt" 

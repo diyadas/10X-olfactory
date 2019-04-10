@@ -27,11 +27,13 @@ run() {
 }
 
 usage() {
-       echo "usage: $0 ncores" >&2
+       echo "usage: tenx_2b_zinb.sh ncores" >&2
        exit 2
 }
 
 [[ $# -eq 1 ]] || usage  # fail if incorrect number of args and print usage info
+
+while true; do free -h >> 'tenx_2b_zinb_'$NOW'_memory.out'; sleep 15; done &
 
 run tenx_2b_zinb.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \

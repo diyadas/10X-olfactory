@@ -36,6 +36,8 @@ usage() {
 
 [[ $# -eq 2 ]] || usage  # fail if incorrect number of args and print usage info
 
+while true; do free -h >> 'tenx_2b_scone_2_compute_'$NOW'_memory.out'; sleep 15; done &
+
 run tenx_2a_scone_2_compute.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \
        --expt "$expt" --ncores "$ncores" --idfilt "$idfilt"  --normalization "$normalization"

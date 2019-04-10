@@ -23,10 +23,7 @@ method <- opt$method
 outdir <- file.path("../output", exptstr, "data")
 ncores <- opt$ncores
 
-print(exptstr)
-print(method)
-print(opt$normalization)
-print(paste("This job is using", ncores, "cores of a node."))
+print(opt)
 
 register(MulticoreParam(workers = opt$ncores))
 

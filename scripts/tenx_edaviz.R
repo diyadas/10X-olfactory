@@ -102,7 +102,7 @@ pdf(file = file.path(vizdir, pasteu0(exptstr, "EDA", "tsne", ngenes, perp,
                                        format(Sys.time(), "%Y%m%d_%H%M%S"), 
                                        ".pdf")),
       width = 8.5, height = 11)
-if (nlevels(expt) > 1) {
+if (nlevels(mycoldata$expt) > 1) {
     plot(tsne_data$Y, pch = 19, cex = 0.4, 
          col = alpha(massivePalette[mycoldata$expt], 0.3), 
          xlab = "TSNE 1", ylab = "TSNE 2", 
@@ -110,7 +110,7 @@ if (nlevels(expt) > 1) {
     legend("bottomleft", legend = levels(expt), fill = massivePalette, cex = 0.6)
   }
   
-  if (nlevels(batch) > 1) {
+  if (nlevels(mycoldata$batch) > 1) {
     plot(tsne_data$Y, pch = 19, cex = 0.4, 
          col = alpha(massivePalette[mycoldata$batch], 0.3), 
          xlab = "TSNE 1", ylab = "TSNE 2", 
