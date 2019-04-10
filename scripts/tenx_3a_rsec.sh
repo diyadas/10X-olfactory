@@ -9,8 +9,39 @@
 #
 
 ncores=$1
-NOW=$(date +"_%Y%m%d-%H%M%S")
+method=$2 #zinb or scone
+normalization=$3
+expt="ob"
+#expt="cortex"
+idfilt="FALSE"
 
-while true; do free -h >> 'tenx_3_rsec'$NOW'_memory.out'; sleep 15; done &
+job=$(basename "$0")
+NOW=$(date +"%Y%m%d-%H%M%S")
+LOG="logs/${expt}_2a_scone_2_compute_${job}_${NOW}.Rout"
+exec >> "$LOG" 2>&1 || exit 1     # redirect stdout and error to log file, will fail if the logs directory doesn't exist
 
-R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_3a_rsec.R --args --expt ob --ncores $ncores --normalization $2 --method scone > 'tenx_3a_rsec'$NOW'.Rout' 2>&1 
+# as refactored by JW Adams from last commit
+# usage: run input_file command to run
+run() {
+       local input="$1"
+       shift;  # remove file from argument list
+       echo "command: $* < $input"
+       echo "--------------"
+       "$@" < "$input"
+}
+
+usage() {
+       echo "usage: tenx_3a_rsec.sh ncores method normalization" >&2
+       exit 2
+}
+
+[[ $# -eq 2 ]] || usage  # fail if incorrect number of args and print usage info
+
+
+while true; do free -h >> 'tenx_3a_rsec'$NOW'_memory.out'; sleep 15; done &
+
+
+run tenx_3a_rsec.R \
+   env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \
+       --expt "$expt" --normalization "$normalization" \
+       --ncores "$ncores" --method "$method" 
