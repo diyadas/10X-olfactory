@@ -14,7 +14,8 @@ option_list <- list(
   make_option("--method", type = "character", help = "scone or zinb"),
   make_option("--ncores", default = "1", type = "double"),
   make_option("--sequential", default = FALSE, type = "logical", help = "TRUE or FALSE"),
-  make_option("--subsample", default = FALSE, type = "logical", help = "TRUE or FALSE")
+  make_option("--subsample", default = FALSE, type = "logical", help = "TRUE or FALSE"),
+  make_option("--idfilt", type = "logical", help = "logical, has sample ID filtering been performed?")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -27,7 +28,15 @@ ncores <- opt$ncores
 
 source("tenx_helper.R")
 
-message(str(args))
+if (opt$idfilt) {
+  idfiltstr <- ""
+} else {
+  idfiltstr <- "idfiltno"
+}
+
+print(opt)
+mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
+print(paste("Files produced by this script will be timestamped:", mytimestamp))
 
 # exclude late-traced cells, different experiment
 load(file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
@@ -75,5 +84,6 @@ seqstr <- ifelse(opt$sequential, "seq", "noseq")
 save(cl, subsamplestr, seqstr, 
      file = file.path(outdir, pasteu0(exptstr, opt$method, opt$normalization,
                                       "rsec",
-                                      format(Sys.time(), "%Y%m%d_%H%M%S"),
+                                      idfiltstr,
+				      mytimestamp,
                                       ".Rda")))
