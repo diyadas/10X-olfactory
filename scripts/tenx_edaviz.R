@@ -107,7 +107,7 @@ if (nlevels(mycoldata$expt) > 1) {
          col = alpha(massivePalette[mycoldata$expt], 0.3), 
          xlab = "TSNE 1", ylab = "TSNE 2", 
          main = paste("expt:", ngenes, "genes, perplexity =", perp))
-    legend("bottomleft", legend = levels(expt), fill = massivePalette, cex = 0.6)
+    legend("bottomleft", legend = levels(mycoldata$expt), fill = massivePalette, cex = 0.6)
   }
   
   if (nlevels(mycoldata$batch) > 1) {
@@ -115,7 +115,7 @@ if (nlevels(mycoldata$expt) > 1) {
          col = alpha(massivePalette[mycoldata$batch], 0.3), 
          xlab = "TSNE 1", ylab = "TSNE 2", 
          main = paste("batch:", ngenes, "genes, perplexity =", perp))
-    legend("bottomleft", legend = levels(batch), fill = massivePalette, cex = 0.6)
+    legend("bottomleft", legend = levels(mycoldata$batch), fill = massivePalette, cex = 0.6)
   }
   
   tsne_expr <- data.frame(tsne_data$Y, t(logcounts[markers, ]))
