@@ -7,6 +7,7 @@ scripts/tenx_1_filtering.Rmd
 scripts/*.sh.*
 scripts/*.Rout
 scripts/*.out
+scripts/logs/*
 local/*
 output/*
 crscripts/Rbp4A/*
