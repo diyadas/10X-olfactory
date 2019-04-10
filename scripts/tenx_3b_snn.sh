@@ -12,6 +12,7 @@ ncores=$1
 expt="ob"
 method=$2
 normalization=$3
+idfilt="FALSE"
 
 job=$(basename "$0")
 NOW=$(date +"%Y%m%d-%H%M%S")
@@ -39,7 +40,7 @@ while true; do free -h >> 'tenx_3b_snn_'$NOW'_memory.out'; sleep 15; done &
 
 run tenx_3b_snn.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \
-       --expt "$expt" --ncores "$ncores" --method "$method" --normalization "$normalization" 
+       --expt "$expt" --ncores "$ncores" --method "$method" --normalization "$normalization" --idfilt "$idfilt" 
 
 #R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_3b_snn.R --args --expt regen --ncores $1 --normalization "none,fq,ruv_k=2,no_bio,no_batch" --method scone > 'tenx_3b_snn'$NOW'.Rout' 2>&1
 
