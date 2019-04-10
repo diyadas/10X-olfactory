@@ -42,8 +42,9 @@ datfiles <<- list.files(path = datdir,
                         full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
-load(datfile)
 print(opt)
+load(datfile)
+
 print(dim(scone_obj))
 
 seed <- 2782472
