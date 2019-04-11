@@ -14,7 +14,8 @@ option_list <- list(
   make_option("--expt", type = "character", help = "Experiment ID"),
   make_option("--normalization", type = "character", help = "name of normalization"),
   make_option("--method", type = "character", help = "scone or zinb"),
-  make_option("--ncores", default = "1", type = "double")
+  make_option("--ncores", default = "1", type = "double"),
+  make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -25,20 +26,32 @@ ncores <- opt$ncores
 
 print(opt)
 
+if (opt$idfilt) {
+  idfiltstr <- ""
+} else {
+  idfiltstr <- "idfiltno"
+}
+
 register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 
 # exclude late-traced cells, different experiment
-load(file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
+load(file.path(outdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
+#ob_1_se_filtqc_idfiltno.Rda
 samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
+print(head(samples))
+print(length(samples))
 
-load(file.path(outdir, pasteu(exptstr, "scone", opt$normalization, "data.Rda")))
+load(file.path(outdir, pasteu0(exptstr, "scone", opt$normalization, "data", idfiltstr, ".Rda")))
 mat <- get_normalized(scone_obj, opt$normalization, log = FALSE)
 mat <- log2(mat + 1)
 #rownames(mat)  <- unique(rownames(mat))
 mat <- uniquecombs(mat,ordered=FALSE)
 rm(scone_obj)
+print(dim(mat))
+print(head(colnames(mat)))
+print(length(setdiff(samples, colnames(mat))))
 
 if (method == "zinb"){
   load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
@@ -72,5 +85,6 @@ seu <- FindClusters(object = seu, reduction.type = "pca",
 
 
 save(seu, file = file.path(outdir, 
-	         	   pasteu0(exptstr, opt$method, opt$normalization, "snn", 
-			   format(Sys.time(), "%Y%m%d_%H%M%S") ,".Rda")))
+	         	   pasteu0(exptstr, opt$method, opt$normalization, "snn",
+			   idfiltstr, 
+			   format(Sys.time(), "%Y%m%d_%H%M%S"), ".Rda")))
