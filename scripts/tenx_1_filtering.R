@@ -33,6 +33,8 @@ option_list <- list(
 opt <- parse_args(OptionParser(option_list = option_list))
 
 print(opt)
+mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
+print(paste("Files produced by this script will be timestamped:", mytimestamp))
 
 exptstr <- opt$expt
 datdir <- file.path("../output", exptstr, "data")
@@ -107,7 +109,7 @@ rowData(se) <- genes
 rownames(se) <- rowData(se)$Symbol
 
 # Exploratory Data Analysis
-pdf(file = file.path(vizdir, pasteu0(exptstr, "1_EDA_prefilt", idfiltstr, ".pdf")),
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_EDA_prefilt", idfiltstr, mytimestamp, ".pdf")),
     height = 11, width = 8.5)
 detectedgeneplot(se, "Pre-filtering\n") # function in helper script
 dev.off()
@@ -147,7 +149,7 @@ if (runQC) {
                   	     ribo_pct = ribo_pct))
   qcpca <- prcomp(qc, scale. = TRUE)
  
- pdf(file = file.path(vizdir, pasteu0(exptstr, "1_mitoribo_prefilt", idfiltstr, ".pdf")),
+ pdf(file = file.path(vizdir, pasteu0(exptstr, "1_mitoribo_prefilt", idfiltstr, mytimestamp, ".pdf")),
     height = 11, width = 8.5)
 plot(qc[,"mito_pct"], col = colb[colData(se)$batch], xlab = "cell index",
      main = "% mito (Mt*) genes")
@@ -166,7 +168,7 @@ print(paste("Percent total variance captured in first 10 expression PCs is",
   round(cumsum(pca$sdev ^ 2 / sum(pca$sdev ^ 2))[10] * 100, digits = 2)
 ))
 
-pdf(file = file.path(vizdir, pasteu0(exptstr, "1_QCpca_prefilt", idfiltstr, ".pdf")),
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_QCpca_prefilt", idfiltstr, mytimestamp, ".pdf")),
     height = 11, width = 8.5)
 screeplot(pca, type = "lines", npcs = 50, main = "Expression PCA screeplot")
 screeplot(qcpca, type = "lines", main = "QC-PCA screeplot")
@@ -192,9 +194,13 @@ for (feature in
 dev.off()
  
   save(se, sce, qc, pca, qcpca,
-       file = file.path(datdir, pasteu0(exptstr, "1_prefilt", idfiltstr, ".Rda")))
+       file = file.path(datdir, pasteu0(exptstr, "1_prefilt", idfiltstr, mytimestamp, ".Rda")))
 } else {
-  load(file.path(datdir, pasteu0(exptstr, "1_prefilt", idfiltstr, ".Rda")))
+  datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "1_prefilt", idfiltstr), 
+  	       		  full.names = TRUE)
+  datfile <- datfiles[length(datfiles)]
+  print(paste("Loading this data file: ", datfile))
+  load(datfile)
 }
 
 # ---- Filtering ----
@@ -216,7 +222,7 @@ hk <- as.character(unlist(read.table(opt$hkfile)))
 }
 hk <- intersect(hk, rowData(se)$Symbol)
 
-pdf(file = file.path(vizdir, pasteu0(exptstr, "1_msf_prefilt", idfiltstr, ".pdf")),
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_msf_prefilt", idfiltstr, mytimestamp, ".pdf")),
     title = "metric_sample_filtering")
 mfilt <- metric_sample_filter(
   assay(se),
@@ -269,7 +275,7 @@ batch <- colData(se_filtered)$batch
 expt <- colData(se_filtered)$expt
 
 # Check for batch effects prior to normalization
-pdf(file = file.path(vizdir, pasteu0(exptstr, "1_batchchk_prefilt", idfiltstr, ".pdf")))
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_batchchk_prefilt", idfiltstr, mytimestamp, ".pdf")))
 plot(pca$x, pch = 19, col = colb[colData(se)$batch], 
      main = "PCA Color-coded by batch, Pre-filtering")
 legend("topleft", legend = levels(colData(se)$batch), fill = colb, cex = 0.6)
@@ -309,7 +315,7 @@ counts_filtered <- assay(se_filtered)
 logcounts_filtered <- log2(counts_filtered + 1) 
 
 controlheatmaps <- function(controllist, se_filtered){
-  pdf(file = file.path(vizdir, pasteu0(exptstr, "1", controllist, "heatmap", idfiltstr, ".pdf")))
+  pdf(file = file.path(vizdir, pasteu0(exptstr, "1", controllist, "heatmap", idfiltstr, mytimestamp, ".pdf")))
   plotHeatmap(logcounts_filtered[rowData(se_filtered)[[controllist]], ],
               colData = data.frame(expt = colData(se_filtered)$expt, 
                                       batch = colData(se_filtered)$batch),
@@ -330,7 +336,7 @@ bars <- data.frame(
   Dimension = as.factor(rep(paste0("PC", 1:5), each = ncol(qc)))
 )
 
-pdf(file = file.path(vizdir, pasteu0(exptstr, "1_cor_qc_exprPCA", idfiltstr, ".pdf")))
+pdf(file = file.path(vizdir, pasteu0(exptstr, "1_cor_qc_exprPCA", idfiltstr, mytimestamp, ".pdf")))
   ggplot(bars, aes(Dimension, AbsoluteCorrelation, group = QC, fill = QC)) +
   geom_bar(stat = "identity", position = 'dodge') +
   scale_fill_manual(values = bigPalette) + ylim(0, 1) +
@@ -339,6 +345,6 @@ dev.off()
 
 # ---- Save output ----
 save(qc, pca, se_filtered, batch, expt,
-     file = file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
+     file = file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, mytimestamp, ".Rda")))
 save(counts_filtered, logcounts_filtered,
-     file = file.path(datdir, pasteu0(exptstr, "1_counts_filtqc", idfiltstr, ".Rda"))) 
+     file = file.path(datdir, pasteu0(exptstr, "1_counts_filtqc", idfiltstr, mytimestamp, ".Rda"))) 
