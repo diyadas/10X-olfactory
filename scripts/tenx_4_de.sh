@@ -13,7 +13,8 @@ method=$2 #zinb or scone
 normalization=$3
 expt="ob"
 #expt="cortex"
-idfilt="TRUE"
+#idfilt="TRUE"
+idfilt="FALSE"
 
 job=$(basename "$0")
 NOW=$(date +"%Y%m%d-%H%M%S")
@@ -44,7 +45,7 @@ while true; do free -h >> 'tenx_4_de_'$NOW'_memory.out'; sleep 15; done &
 run tenx_4_de.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \
        --expt "$expt" --normalization "$normalization" \
-       --ncores "$ncores" --method "$method" 
+       --ncores "$ncores" --method "$method" --idfilt "$idfilt" 
 
 
 #R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_4_de.R --args --expt ob --ncores $ncores --normalization "none,fq,ruv_k=3,no_bio,batch" --method scone > 'tenx_4_de'$NOW'.Rout' 2>&1
