@@ -38,7 +38,7 @@ datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
 
-load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
+load(file.path(datdir, pasteu(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
 se_filtered <- se_filtered[, colnames(seu@data)]
 metadata <- data.frame(seu@meta.data, expt = colData(se_filtered)$expt,
                                       batch = colData(se_filtered)$batch,
