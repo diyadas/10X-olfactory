@@ -40,7 +40,7 @@ print(paste("Files produced by this script will be timestamped:", mytimestamp))
 
 # exclude late-traced cells, different experiment
 load(file.path(outdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr,  ".Rda")))
-samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
+#samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
 
 load(file.path(outdir, pasteu0(exptstr, "scone", opt$normalization, "data", idfiltstr, ".Rda")))
 mat <- get_normalized(scone_obj, opt$normalization, log = FALSE)
