@@ -14,16 +14,20 @@ ncores=$1
 #exptinfo="cortex_exptinfo.csv"
 #posctrlfile="../ref/cortexgenes.txt"
 
+#expt="ob"
+#aggr="RCOB2AB567"
+#exptinfo="rcob_exptinfo.csv"
+#posctrlfile="../ref/OBmarkers.txt"
+#hkfile="hkpackage"
 
-expt="ob"
-aggr="RCOB2AB567"
-exptinfo="rcob_exptinfo.csv"
-posctrlfile="../ref/OBmarkers.txt"
-
-hkfile="hkpackage"
+expt="regen"
+aggr="regen_inclwhOE_20190407"
+exptinfo="regen_exptinfo.csv"
+posctrlfile="../ref/oeRegPosCon.txt"
+hkfile="../ref/hkl615.txt"
 
 runQC="TRUE"
-exclude=""
+exclude="" #input ref/expt_SOMETHING_exclude.Rda typically gene names or putative identity ex ob_AON or ob_Lmo3_Enc1
 
 job=$(basename "$0")
 NOW=$(date +"%Y%m%d-%H%M%S")
@@ -47,7 +51,7 @@ usage() {
 
 [[ $# -eq 1 ]] || usage  # fail if incorrect number of args and print usage info
 
-while true; do free -h >> 'tenx_1_filtering_'$NOW'_memory.out'; sleep 15; done &
+while true; do free -h >> 'logs/tenx_1_filtering_'$NOW'_memory.out'; sleep 15; done &
 
 run tenx_1_filtering.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \
