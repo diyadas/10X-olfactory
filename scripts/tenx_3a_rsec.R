@@ -32,6 +32,7 @@ message(str(args))
 # exclude late-traced cells, different experiment
 load(file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
 samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
+se_filtered <- se_filtered[, samples]
 
 load(file.path(outdir, pasteu(exptstr, "scone", opt$normalization, "data.Rda")))
 mat <- get_normalized(scone_obj, opt$normalization, log = FALSE)
@@ -64,11 +65,15 @@ cl <- RSEC(sce, k0s = seq(10, 25, by = 3), alphas = c(0.1, 0.2, 0.3),
            ncores = ncores,
            consensusProportion = 0.7, consensusMinSize = 10, # with sequential turned off, then consensus might result in many -1s
            dendroReduce = "PCA", dendroNDims = 30,
-           mergeMethod = "adjP", mergeCutoff = 0.1,
-           mergeLogFCcutoff = 1, random.seed = 2357891,
-           mergeDEMethod = "limma-voom", 
+	   mergeMethod = "none",
+       #    mergeMethod = "adjP", 
+       #    mergeCutoff = 0.1,
+       #    mergeLogFCcutoff = 1, 
+       #    mergeDEMethod = "limma-voom",
+	   random.seed = 2357891,
            verbose = TRUE, run = TRUE)
-
+cl
+print(colnames(cl@clusterMatrix))
 subsamplestr <- ifelse (opt$subsample, "sub", "nosub")
 seqstr <- ifelse(opt$sequential, "seq", "noseq")
 
