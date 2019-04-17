@@ -15,9 +15,11 @@ normalization=$3
 #markerfile="cortexgenes.txt"
 expt="ob"
 markerfile="OBmarkers.txt"
+seures="res.0.5"
 #expt="regen"
 #markerfile="oe_markers32+regen.txt"
 idfilt="FALSE"
+
 
 job=$(basename "$0")
 NOW=$(date +"%Y%m%d-%H%M%S")
@@ -48,7 +50,8 @@ while true; do free -h >> 'tenx_viz_clusterPlots_'$NOW'_memory.out'; sleep 15; d
 run tenx_viz_clusterPlots.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \
        --expt "$expt" --normalization "$normalization" \
-       --ncores "$ncores" --method "$method" --markerfile "$markerfile"
+       --ncores "$ncores" --method "$method" --markerfile "$markerfile" \
+       --seures "$seures"
 
 
 #R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_viz_clusterPlots.R --args --expt regen --ncores $ncores --norm "none,fq,ruv_k=1,no_bio,no_batch" --method scone --clusmethod rsec > 'tenx_viz_clusterPlots'$NOW'.Rout' 2>&1
