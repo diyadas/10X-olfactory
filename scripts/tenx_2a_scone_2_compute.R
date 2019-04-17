@@ -19,6 +19,8 @@ datdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz")
 
 print(opt)
+mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
+print(paste("Files produced by this script will be timestamped:", mytimestamp))
 
 if (opt$idfilt) {
   idfiltstr <- ""
@@ -47,7 +49,12 @@ scone_fx <- function(SconeExperimentObj, ...){
   )
 }
 
-load(file = file.path(datdir, pasteu0(exptstr, "2a_scone_1_eval_select", idfiltstr, ".Rda")))
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "2a_scone_1_eval_select", idfiltstr),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+
 scone_obj@scone_params <- scone_obj@scone_params[opt$normalization,]
 scone_obj <- scone_fx(scone_obj, run = TRUE, return_norm = "in_memory")
-save(scone_obj, file = file.path(datdir, pasteu0(exptstr, "scone", opt$normalization, "data", idfiltstr, ".Rda")))
+save(scone_obj, file = file.path(datdir, pasteu0(exptstr, "scone", opt$normalization, "data", idfiltstr, mytimestamp, ".Rda")))
