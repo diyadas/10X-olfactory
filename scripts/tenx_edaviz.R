@@ -42,8 +42,9 @@ datfiles <<- list.files(path = datdir,
                         full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
-load(datfile)
 print(opt)
+load(datfile)
+
 print(dim(scone_obj))
 
 seed <- 2782472
@@ -91,26 +92,30 @@ rtsne_fx <- function(logcounts, ngenes, perp) {
 vars <- apply(logcounts, 1, var)
 vars <- sort(vars, decreasing = TRUE)
 
-tsne_data <- rtsne_fx(logcounts, ngenes = 500, perp = 80)
+ngenes <- 500
+perp <- 80
+
+tsne_data <- rtsne_fx(logcounts, ngenes = ngenes, perp = perp)
 
 pdf(file = file.path(vizdir, pasteu0(exptstr, "EDA", "tsne", ngenes, perp,
                                        "scone", opt$normalization, 
                                        format(Sys.time(), "%Y%m%d_%H%M%S"), 
-                                       ".pdf")))
-if (nlevels(expt) > 1) {
+                                       ".pdf")),
+      width = 8.5, height = 11)
+if (nlevels(mycoldata$expt) > 1) {
     plot(tsne_data$Y, pch = 19, cex = 0.4, 
          col = alpha(massivePalette[mycoldata$expt], 0.3), 
          xlab = "TSNE 1", ylab = "TSNE 2", 
          main = paste("expt:", ngenes, "genes, perplexity =", perp))
-    legend("bottomleft", legend = levels(expt), fill = massivePalette, cex = 0.6)
+    legend("bottomleft", legend = levels(mycoldata$expt), fill = massivePalette, cex = 0.6)
   }
   
-  if (nlevels(batch) > 1) {
+  if (nlevels(mycoldata$batch) > 1) {
     plot(tsne_data$Y, pch = 19, cex = 0.4, 
          col = alpha(massivePalette[mycoldata$batch], 0.3), 
          xlab = "TSNE 1", ylab = "TSNE 2", 
          main = paste("batch:", ngenes, "genes, perplexity =", perp))
-    legend("bottomleft", legend = levels(batch), fill = massivePalette, cex = 0.6)
+    legend("bottomleft", legend = levels(mycoldata$batch), fill = massivePalette, cex = 0.6)
   }
   
   tsne_expr <- data.frame(tsne_data$Y, t(logcounts[markers, ]))

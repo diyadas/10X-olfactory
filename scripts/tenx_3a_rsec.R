@@ -14,27 +14,47 @@ option_list <- list(
   make_option("--method", type = "character", help = "scone or zinb"),
   make_option("--ncores", default = "1", type = "double"),
   make_option("--sequential", default = FALSE, type = "logical", help = "TRUE or FALSE"),
-  make_option("--subsample", default = FALSE, type = "logical", help = "TRUE or FALSE")
+  make_option("--subsample", default = FALSE, type = "logical", help = "TRUE or FALSE"),
+  make_option("--idfilt", type = "logical", help = "logical, has sample ID filtering been performed?")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
 exptstr <- opt$expt
 method <- opt$method
-outdir <- file.path("../output", exptstr, "data")
+datdir <- file.path("../output", exptstr, "data")
 ncores <- opt$ncores
 
 #register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 
-message(str(args))
+if (opt$idfilt) {
+  idfiltstr <- ""
+} else {
+  idfiltstr <- "idfiltno"
+}
+
+print(opt)
+mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
+print(paste("Files produced by this script will be timestamped:", mytimestamp))
 
 # exclude late-traced cells, different experiment
-load(file.path(outdir, pasteu(exptstr, "se_filtered.Rda")))
+
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "1_se_filtqc", idfiltstr),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+samples <- colnames(se_filtered)
 samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
 se_filtered <- se_filtered[, samples]
 
-load(file.path(outdir, pasteu(exptstr, "scone", opt$normalization, "data.Rda")))
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "scone", opt$normalization, "data", idfiltstr),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+
 mat <- get_normalized(scone_obj, opt$normalization, log = FALSE)
 rm(scone_obj)
 gc()
@@ -44,7 +64,12 @@ reduceMethod = "PCA"
 sce <- SingleCellExperiment(assays = list(counts = mat))
 
 if (method == "zinb") {
-  load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
+  datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, method, "data", idfiltstr),
+                        full.names = TRUE)
+  datfile <- datfiles[length(datfiles)]
+  print(paste("Loading this data file: ", datfile))
+  load(datfile)
+
   reducedDims(sce) <- SimpleList(zinb = reducedDim(zinb_obj, "zinbwave")[samples,])
   reduceMethod = "zinb"
 }
@@ -78,7 +103,8 @@ subsamplestr <- ifelse (opt$subsample, "sub", "nosub")
 seqstr <- ifelse(opt$sequential, "seq", "noseq")
 
 save(cl, subsamplestr, seqstr, 
-     file = file.path(outdir, pasteu0(exptstr, opt$method, opt$normalization,
+     file = file.path(datdir, pasteu0(exptstr, opt$method, opt$normalization,
                                       "rsec",
-                                      format(Sys.time(), "%Y%m%d_%H%M%S"),
+                                      idfiltstr,
+				      mytimestamp,
                                       ".Rda")))

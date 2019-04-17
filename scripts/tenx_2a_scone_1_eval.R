@@ -10,9 +10,13 @@ option_list <- list(
   make_option("--expt", type = "character", help = "Experiment ID"),
   make_option("--ncores", default = "1", type = "double"),
   make_option("--subsample", default = TRUE, type = "logical"),
-  make_option("--idfilt", type = "logical", help = "logical, has sample ID filtering been performed?")
+  make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?")
 )
 opt <- parse_args(OptionParser(option_list = option_list))
+print(opt)
+mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
+print(paste("Files produced by this script will be timestamped:", mytimestamp))
+
 exptstr <- opt$expt
 datdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz")
@@ -44,7 +48,12 @@ scone_fx <- function(SconeExperimentObj, ...){
   )
 }
 
-load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "1_se_filtqc", idfiltstr),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+
 scone_obj <- SconeExperiment(se_filtered,
                              which_qc = 
                                which(colnames(colData(se_filtered)) %in% 
@@ -70,7 +79,7 @@ if (opt$subsample) {
     return(list(get_scores(scone_sub), get_score_ranks(scone_sub)))
   } , simplify = FALSE)
   save(scone_obj, sub_ranks, 
-       file = file.path(datdir, pasteu0(exptstr, "2a_scone_1_eval_full", idfiltstr, ".Rda")))
+       file = file.path(datdir, pasteu0(exptstr, "2a_scone_1_eval_full", idfiltstr, mytimestamp, ".Rda")))
   
   scone_ranks <- sort(rowMeans(
     sapply(sub_ranks, function(x) x[[2]][names(sub_ranks[[1]][[2]])])), 
@@ -80,13 +89,13 @@ if (opt$subsample) {
   scone_scores_mean <- scone_scores_mean[names(scone_ranks),]  
   scone_obj@scone_params <- scone_params@scone_params[names(scone_ranks)[1:8],] 
   save(scone_obj, scone_ranks, scone_scores, scone_scores_mean,
-       file = file.path(datdir, pasteu0(exptstr, "2a_scone_1_eval_select", idfiltstr, ".Rda")))
+       file = file.path(datdir, pasteu0(exptstr, "2a_scone_1_eval_select", idfiltstr, mytimestamp, ".Rda")))
 } else {
   print("Running scone without subsampling")
   scone_obj <- scone_fx(scone_obj)
   save(scone_obj, 
-       file = file.path(datdir, pasteu0(exptstr, "2a_scone_1_eval_full", idfiltstr, ".Rda")))
+       file = file.path(datdir, pasteu0(exptstr, "2a_scone_1_eval_full", idfiltstr, mytimestamp, ".Rda")))
   scone_obj@scone_params <- scone_obj@scone_params[1:8,]
   save(scone_obj, 
-       file = file.path(datdir, pasteu0(exptstr, "2a_scone_1_eval_select", idfiltstr, ".Rda")))
+       file = file.path(datdir, pasteu0(exptstr, "2a_scone_1_eval_select", idfiltstr, mytimestamp, ".Rda")))
 }

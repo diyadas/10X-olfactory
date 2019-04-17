@@ -12,7 +12,7 @@ library(clusterExperiment)
 
 option_list <- list(
   make_option("--expt", default = "", type = "character", help = "Experiment ID"),
-  make_option("--norm", type = "character", help = "name of normalization"),
+  make_option("--normalization", type = "character", help = "name of normalization"),
   make_option("--method", type = "character", help = "scone or zinb"),
   make_option("--ncores", default = "1", type = "double"),
   make_option("--markerfile", default = "oe_markers32+regen.txt", type = "character",
@@ -22,10 +22,17 @@ option_list <- list(
   make_option("--seures", type = "character", default = "res.0.5",
               help = "Seurat, which resolution to use for primary clustering"),
   make_option("--samplesort", type = "character", 
-              help = "argument clusterSamplesData, i.e. dendrogramValue or primaryCluster")
+              help = "argument clusterSamplesData, i.e. dendrogramValue or primaryCluster"),
+  make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
+if (opt$idfilt) {
+  idfiltstr <- ""
+} else {
+  idfiltstr <- "idfiltno"
+}
+
 exptstr <- opt$expt
 method <- opt$method
 datdir <- file.path("../output", exptstr, "data")
@@ -36,22 +43,27 @@ register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 
-datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, method, opt$norm, 
-                                                        opt$clusmethod), full.names = TRUE)
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, method, opt$normalization, 
+                                                        opt$clusmethod, idfiltstr), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
-load(file.path(datdir, pasteu(exptstr, "se_filtered.Rda")))
-
-print(opt)
+load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
 
 if (opt$clusmethod == "snn"){
   se_filtered <- se_filtered[, colnames(seu@data)]
   metadata <- seu@meta.data[, c(grep("^res", colnames(seu@meta.data))), drop = FALSE]
+  if (opt$seures %in% colnames(metadata)) {
+     seures <- 0.5
+  } else {
+    message("WARNING: seures not in range of clusterings, using seures as below")
+    seures <- colnames(metadata)[1]
+    message(paste("seures:", seures))
+  }
   counts <- 2 ^ (seu@data) - 1
   cl <- ClusterExperiment(counts,
                           clusters = as.matrix(metadata),
-                          primaryIndex = which(colnames(metadata) == opt$seures),
+                          primaryIndex = which(colnames(metadata) == seures),
                           transformation = function(x) log2(x + 1))
   metadata <- data.frame(expt = colData(se_filtered)$expt, 
                          batch = colData(se_filtered)$batch,  
@@ -65,14 +77,7 @@ seed <- 2782472
 
 # Plot marker gene heatmap
 massivePalette <- massivePalette[-3]
-
-## Set cluster legend colors
-#clusterLegend <- setNames(rep(list(massivePalette), ncol(colData(cl))), colnames(colData(cl)))
-#if (exptstr == "ob" & length(unique(colData(cl)[, 1])) < length(colRKC)) {
-#  clusterLegend <- setNames(rep(list(colRKC), ncol(colData(cl))), colnames(colData(cl)))
-#}
-
-#clusterLegend[["expt"]] <- cole
+cl <- recolorMassive(cl)
 
 markers <- intersect(unlist(read.table(file.path("../ref", opt$markerfile))),
                      rownames(cl))
@@ -83,7 +88,7 @@ breakv <- c(min(dat),
 breakv <- unique(breakv)
 
 pdf(file = file.path(vizdir,
-                     pasteu0(exptstr, "markerhm", method, opt$norm,
+                     pasteu0(exptstr, "markerhm", method, opt$normalization,
                              opt$clusmethod,
                              format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")),
     width = 8.5, height = 11)
@@ -132,7 +137,7 @@ lapply(1:nrow(params), function(x) {
   cl@reducedDims$tsne[[x]] <- rtsne_fx(cl, ngenes, perp)
   
   pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", ngenes, perp,
-                                       method, opt$clusmethod, opt$norm, 
+                                       method, opt$clusmethod, opt$normalization, 
                                        format(Sys.time(), "%Y%m%d_%H%M%S"), 
                                        ".pdf")))
   
