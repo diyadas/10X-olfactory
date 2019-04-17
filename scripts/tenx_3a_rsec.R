@@ -21,7 +21,7 @@ option_list <- list(
 opt <- parse_args(OptionParser(option_list = option_list))
 exptstr <- opt$expt
 method <- opt$method
-outdir <- file.path("../output", exptstr, "data")
+datdir <- file.path("../output", exptstr, "data")
 ncores <- opt$ncores
 
 #register(MulticoreParam(workers = opt$ncores))
@@ -39,11 +39,21 @@ mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
 print(paste("Files produced by this script will be timestamped:", mytimestamp))
 
 # exclude late-traced cells, different experiment
-load(file.path(outdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr,  ".Rda")))
-samples <- colnames(se_filtered)
-#samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
 
-load(file.path(outdir, pasteu0(exptstr, "scone", opt$normalization, "data", idfiltstr, ".Rda")))
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "1_se_filtqc", idfiltstr),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+samples <- colnames(se_filtered)
+samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
+
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "scone", opt$normalization, "data", idfiltstr),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+
 mat <- get_normalized(scone_obj, opt$normalization, log = FALSE)
 rm(scone_obj)
 gc()
@@ -53,7 +63,12 @@ reduceMethod = "PCA"
 sce <- SingleCellExperiment(assays = list(counts = mat))
 
 if (method == "zinb") {
-  load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
+  datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, method, "data", idfiltstr),
+                        full.names = TRUE)
+  datfile <- datfiles[length(datfiles)]
+  print(paste("Loading this data file: ", datfile))
+  load(datfile)
+
   reducedDims(sce) <- SimpleList(zinb = reducedDim(zinb_obj, "zinbwave")[samples,])
   reduceMethod = "zinb"
 }
@@ -83,7 +98,7 @@ subsamplestr <- ifelse (opt$subsample, "sub", "nosub")
 seqstr <- ifelse(opt$sequential, "seq", "noseq")
 
 save(cl, subsamplestr, seqstr, 
-     file = file.path(outdir, pasteu0(exptstr, opt$method, opt$normalization,
+     file = file.path(datdir, pasteu0(exptstr, opt$method, opt$normalization,
                                       "rsec",
                                       idfiltstr,
 				      mytimestamp,
