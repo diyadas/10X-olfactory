@@ -11,7 +11,7 @@ library(clusterExperiment)
 
 option_list <- list(
   make_option("--expt", default = "", type = "character", help = "Experiment ID"),
-  make_option("--norm", type = "character", help = "name of normalization"),
+  make_option("--normalization", type = "character", help = "name of normalization"),
   make_option("--method", type = "character", help = "scone or zinb"),
   make_option("--ncores", default = "1", type = "double"),
   make_option("--markerfile", default = "oe_markers32+regen.txt", type = "character",
@@ -38,7 +38,7 @@ register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 
-datfiles <<- list.files(path = datdir, pattern = glob2rx(pasteu(exptstr, method, opt$norm, 
+datfiles <<- list.files(path = datdir, pattern = glob2rx(pasteu(exptstr, method, opt$normalization, 
                                                         opt$clusmethod, "2019*")), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
@@ -103,7 +103,7 @@ plotHeatmap(cl2,
 dev.off()
 
 save(cl2, file = file.path(datdir,
-                     pasteu0(exptstr, method, opt$norm,
+                     pasteu0(exptstr, method, opt$normalization,
                              opt$clusmethod, mergemethod, "mergecutoff", cutoff,
                              mytimestamp, ".Rda")))
 }
