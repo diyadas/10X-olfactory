@@ -9,7 +9,9 @@
 #
 
 ncores=$1
-expt="ob"
+#expt="ob"
+expt="cortex"
+idfilt="FALSE"
 
 job=$(basename "$0" .sh)
 NOW=$(date +"%Y%m%d-%H%M%S")
@@ -37,7 +39,7 @@ while true; do free -h >> 'tenx_2b_zinb_'$NOW'_memory.out'; sleep 15; done &
 
 run tenx_2b_zinb.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \
-       --expt "$expt" --ncores "$ncores"
+       --expt "$expt" --ncores "$ncores" --idfilt "$idfilt"
 
 #R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_2b_zinb.R --args --expt regen --ncores $ncores > 'tenx_2b_zinb'$NOW'.Rout' 2>&1
 #R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_2b_zinb.R --args --expt ob  --ncores $ncores > 'tenx_2b_zinb'$NOW'.Rout' 2>&1
