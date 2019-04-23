@@ -38,7 +38,7 @@ run() {
 }
 
 usage() {
-       echo "usage: tenx_viz_clusterPlots.sh ncores method normalization" >&2
+       echo "usage: tenx_3a_rsec_2_merge_slurm.sh ncores method normalization" >&2
        exit 2
 }
 
@@ -54,7 +54,6 @@ run tenx_3a_rsec_2_merge.R \
         --ncores $ncores \
         --normalization  "$normalization" \
         --method "$method"  \
-        --clusmethod rsec \
         --markerfile "$markerfile" \
         --idfilt "$idfilt" \
         --samplesort primaryCluster
