@@ -29,7 +29,7 @@ ncores <- opt$ncores
 source("tenx_helper.R")
 
 if (opt$idfilt) {
-  idfiltstr <- ""
+  idfiltstr <- "idfiltyes"
 } else {
   idfiltstr <- "idfiltno"
 }
