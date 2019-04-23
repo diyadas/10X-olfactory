@@ -1,0 +1,2 @@
+library(optparse)
+print(sessionInfo())
