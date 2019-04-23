@@ -8,6 +8,7 @@ scripts/*.sh.*
 scripts/*.Rout
 scripts/*.out
 scripts/logs/*
+scripts/memorylogs/*
 local/*
 output/*
 crscripts/Rbp4A/*
