@@ -23,7 +23,7 @@ mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
 print(paste("Files produced by this script will be timestamped:", mytimestamp))
 
 if (opt$idfilt) {
-  idfiltstr <- ""
+  idfiltstr <- "idfiltyes"
 } else {
   idfiltstr <- "idfiltno"
 }
