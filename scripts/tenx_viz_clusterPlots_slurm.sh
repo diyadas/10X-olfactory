@@ -69,8 +69,9 @@ tenx_mergersec.R --args \
 --normalization  "$normalization" \
 --method "$method"  \
 --clusmethod rsec \
---markerfile "$markerfile"
---seures "$seures"
+--markerfile "$markerfile" \
+--seures "$seures" \
+--idfilt "$idfilt" \
 --samplesort primaryCluster > 'tenx_viz_clusterPlots'$NOW'.Rout' 2>&1
 
 
