@@ -23,8 +23,8 @@ idfilt="FALSE"
 
 
 job=$SLURM_JOB_ID
-NOW=$(date +"_%Y%m%d-%H%M%S")
-LOG="logs/${expt}_viz_clusterPlots_slurm_${job}_${NOW}.Rout"
+NOW=$(date +"%Y%m%d-%H%M%S")
+LOG="logs/${expt}_viz_clusterPlots_${job}_${NOW}.Rout"
 exec >> "$LOG" 2>&1 || exit 1     # redirect stdout and error to log file, will fail if the logs directory doesn't exist
 
 # as refactored by JW Adams from last commit
@@ -44,7 +44,7 @@ usage() {
 
 [[ $# -eq 3 ]] || usage  # fail if incorrect number of args and print usage info
 
-while true; do free -h >> 'tenx_viz_clusterPlots_slurm'$NOW'_memory.out'; sleep 15; done &
+while true; do free -h >> 'memorylogs/tenx_viz_clusterPlots'$NOW'_memory.out'; sleep 15; done &
 
 module load gcc
 #module load hdf5

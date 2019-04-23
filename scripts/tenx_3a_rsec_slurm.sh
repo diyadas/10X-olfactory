@@ -43,7 +43,7 @@ usage() {
 [[ $# -eq 3 ]] || usage  # fail if incorrect number of args and print usage info
 
 
-while true; do free -h >> 'tenx_3a_rsec_'$NOW'_memory.out'; sleep 15; done &
+while true; do free -h >> 'memorylogs/tenx_3a_rsec_'$NOW'_memory.out'; sleep 15; done &
 
 
 run tenx_3a_rsec.R \

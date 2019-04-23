@@ -23,7 +23,7 @@ idfilt="FALSE"
 
 
 job=$SLURM_JOB_ID
-NOW=$(date +"_%Y%m%d-%H%M%S")
+NOW=$(date +"%Y%m%d-%H%M%S")
 LOG="logs/${expt}_3a_rsec_2_merge_${job}_${NOW}.Rout"
 exec >> "$LOG" 2>&1 || exit 1     # redirect stdout and error to log file, will fail if the logs directory doesn't exist
 
@@ -44,7 +44,7 @@ usage() {
 
 [[ $# -eq 3 ]] || usage  # fail if incorrect number of args and print usage info
 
-while true; do free -h >> 'logs/'$expt'_3a_rsec_2_merge_'$NOW'_memory.out'; sleep 15; done &
+while true; do free -h >> 'memorylogs/'$expt'_3a_rsec_2_merge_'$NOW'_memory.out'; sleep 15; done &
 
 module load gcc
 
