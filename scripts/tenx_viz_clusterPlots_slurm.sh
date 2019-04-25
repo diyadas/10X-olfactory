@@ -14,11 +14,11 @@ method=$2 #zinb or scone
 normalization=$3
 #expt="cortex"
 #markerfile="cortexgenes.txt"
-expt="ob"
-markerfile="OBmarkers.txt"
-seures="res.0.5"
-#expt="regen"
-#markerfile="oe_markers32+regen.txt"
+#expt="ob"
+#markerfile="OBmarkers.txt"
+#seures="res.0.5"
+expt="regen"
+markerfile="oe_markers32+regen.txt"
 idfilt="FALSE"
 
 
