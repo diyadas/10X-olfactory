@@ -63,10 +63,14 @@ breakv <- c(min(dat),
             max(dat))
 breakv <- unique(breakv)
 
-mergemethod <- "adjP"
+if (exptstr == "ob" | exptstr == "cortex" ) {
+   mergemethod <- "locfdr"
+   cutoffvec <- c(0.08, 0.1, 0.2, 0.3, 0.35, 0.4, 0.5)
+} else if (exptstr == "regen") {
+   mergemethod <- "adjP"
+   cutoffvec <- c(0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3)
+}
 
-cutoffvec <- c(0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3)
-#cutoffvec <- c(0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5)
 for (cutoff in cutoffvec) {
 pdf(file = file.path(vizdir,
                      pasteu0(exptstr, method, opt$norm,
