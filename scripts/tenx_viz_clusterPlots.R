@@ -43,11 +43,19 @@ register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 
+if (opt$normalization == "scone) {
 datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, method, opt$normalization, 
                                                         opt$clusmethod, idfiltstr), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
+} else if (opt$normalization == "zinb") {
+datfiles <<- list.files(path = datdir, pattern = pasteu0(exptstr, method, "data",
+                                                          idfiltstr), full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+}
 load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
 
 if (opt$clusmethod == "snn"){
