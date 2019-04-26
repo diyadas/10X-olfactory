@@ -37,7 +37,12 @@ register(MulticoreParam(workers = opt$ncores))
 source("tenx_helper.R")
 
 # exclude late-traced cells, different experiment
-load(file.path(outdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "1_se_filtqc", idfiltstr),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+
 #ob_1_se_filtqc_idfiltno.Rda
 samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert = TRUE)] 
 print(head(samples))
