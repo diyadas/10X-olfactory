@@ -21,7 +21,7 @@ option_list <- list(
 opt <- parse_args(OptionParser(option_list = option_list))
 exptstr <- opt$expt
 method <- opt$method
-outdir <- file.path("../output", exptstr, "data")
+datdir <- file.path("../output", exptstr, "data")
 ncores <- opt$ncores
 
 print(opt)
