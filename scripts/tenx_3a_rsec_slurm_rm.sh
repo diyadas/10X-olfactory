@@ -3,11 +3,9 @@
 #SBATCH --export=ALL
 #SBATCH --nodes=1
 #SBATCH -t 48:00:00
-#SBATCH -p LM
-#SBATCH --mem 500GB
+#SBATCH -p RM
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=diyadas@berkeley.edu,rchance@berkeley.edu
-
 
 #### #SBATCH -t 48:00:00 #SBATCH --mem 500GB
 
@@ -20,9 +18,9 @@ expt="ob"
 #expt="cortex"
 idfilt="FALSE"
 
-job=$SLURM_JOB_ID
+job=$(basename "$0")
 NOW=$(date +"%Y%m%d-%H%M%S")
-LOG="logs/${expt}_3a_rsec_${job}_${NOW}.Rout"
+LOG="logs/${expt}_3a_rsec_${%j}_${NOW}.Rout"
 exec >> "$LOG" 2>&1 || exit 1     # redirect stdout and error to log file, will fail if the logs directory doesn't exist
 
 # as refactored by JW Adams from last commit
@@ -43,7 +41,7 @@ usage() {
 [[ $# -eq 3 ]] || usage  # fail if incorrect number of args and print usage info
 
 
-while true; do free -h >> 'memorylogs/tenx_3a_rsec_'$NOW'_memory.out'; sleep 15; done &
+while true; do free -h >> 'tenx_3a_rsec_'$NOW'_memory.out'; sleep 15; done &
 
 
 run tenx_3a_rsec.R \

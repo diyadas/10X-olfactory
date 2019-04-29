@@ -80,7 +80,7 @@ if (length(opt$exclude)==0){
                                         exptstr, "_", opt$exclude,
                                         "_exclude.Rda"))
   message("using sample to exclude list")
-  idfiltstr <- NULL
+  idfiltstr <- "idfiltyes"
 } else {
   message("no exclude list given! remember to run this again with a list of biological contaminants!")
   idfiltstr <- "idfiltno"

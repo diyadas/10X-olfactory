@@ -29,7 +29,7 @@ ncores <- opt$ncores
 source("tenx_helper.R")
 
 if (opt$idfilt) {
-  idfiltstr <- ""
+  idfiltstr <- "idfiltyes"
 } else {
   idfiltstr <- "idfiltno"
 }
@@ -86,7 +86,7 @@ cl <- RSEC(sce, k0s = seq(10, 25, by = 3), alphas = c(0.1, 0.2, 0.3),
            subsampleArgs = list(resamp.num = 50, clusterFunction = "kmeans"),
            betas = c(0.8),
            clusterFunction = c("hierarchical01", "pam"),
-           minSizes = 1,
+           minSizes = 10,
            ncores = ncores,
            consensusProportion = 0.7, consensusMinSize = 10, # with sequential turned off, then consensus might result in many -1s
            dendroReduce = "PCA", dendroNDims = 30,

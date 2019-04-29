@@ -5,7 +5,7 @@
 # Load command-line arguments
 rm(list = ls())
 options(getClass.msg = FALSE)
-library(optparse)
+library("optparse")
 option_list <- list(
   make_option("--expt", type = "character", help = "Experiment ID"),
   make_option("--ncores", default = "1", type = "double"),
@@ -30,7 +30,7 @@ library(scone)
 source("tenx_helper.R")
 
 if (opt$idfilt) {
-  idfiltstr <- ""
+  idfiltstr <- "idfiltyes"
 } else {
   idfiltstr <- "idfiltno"
 }
