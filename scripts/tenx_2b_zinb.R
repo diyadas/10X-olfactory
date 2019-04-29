@@ -49,7 +49,7 @@ vars <- sort(vars, decreasing = TRUE)
 
 zinb <- zinbFit(se_filtered[names(vars)[1:1000],], X = "~ log10_total_counts + pct_counts_in_top_500_features + ribo_pct", K = 20, epsilon = 1000)
 zinbparams <- "zinbFit(se_filtered[names(vars)[1:1000],], X = '~ log10_total_counts + pct_counts_in_top_500_features + ribo_pct', K = 20, epsilon = 1000)"
-save(zinb, zinbparams, file = file.path(datdir, pasteu(exptstr,"zinb_data.Rda")))
+#save(zinb, zinbparams, file = file.path(datdir, pasteu(exptstr,"zinb_param.Rda")))
 
 W <- getW(zinb)
 d <- dist(W)
@@ -58,4 +58,4 @@ save(W, zinbparams, file = file.path(datdir, pasteu0(exptstr, "zinbW", format(Sy
 
 zinb_obj <- zinbwave(se_filtered[names(vars)[1:1000],], fitted_model = zinb, K = 20, epsilon = 1000)
 save(zinb_obj, zinbparams, zinb, 
-       file = file.path(datdir, pasteu(exptstr,idfiltstr, "zinb_data.Rda")))
+       file = file.path(datdir, pasteu(exptstr, idfiltstr, "zinb_data.Rda"))
