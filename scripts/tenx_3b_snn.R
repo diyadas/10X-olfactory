@@ -48,7 +48,13 @@ samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert 
 print(head(samples))
 print(length(samples))
 
-load(file.path(outdir, pasteu0(exptstr, "scone", opt$normalization, "data", idfiltstr, ".Rda")))
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "scone", opt$normalization, "data", idfiltstr),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+
+#load(file.path(datdir, pasteu0(exptstr, "scone", opt$normalization, "data", idfiltstr, ".Rda")))
 mat <- get_normalized(scone_obj, opt$normalization, log = FALSE)
 mat <- log2(mat + 1)
 #rownames(mat)  <- unique(rownames(mat))
@@ -59,7 +65,12 @@ print(head(colnames(mat)))
 print(length(setdiff(samples, colnames(mat))))
 
 if (method == "zinb"){
-  load(file.path(outdir, pasteu(exptstr, method, "data.Rda")))
+#  load(file.path(datdir, pasteu(exptstr, method, "data.Rda")))
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, idfiltstr, "zinb",  "data"),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
 }
 
 mat <- mat[, samples]
@@ -89,7 +100,7 @@ seu <- FindClusters(object = seu, reduction.type = "pca",
 }
 
 
-save(seu, file = file.path(outdir, 
+save(seu, file = file.path(datdir, 
 	         	   pasteu0(exptstr, opt$method, opt$normalization, "snn",
 			   idfiltstr, 
 			   format(Sys.time(), "%Y%m%d_%H%M%S"), ".Rda")))
