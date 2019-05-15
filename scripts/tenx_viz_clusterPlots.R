@@ -28,7 +28,7 @@ option_list <- list(
 
 opt <- parse_args(OptionParser(option_list = option_list))
 if (opt$idfilt) {
-  idfiltstr <- ""
+  idfiltstr <- "idfiltyes"
 } else {
   idfiltstr <- "idfiltno"
 }
@@ -43,16 +43,28 @@ register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 
-datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, method, opt$normalization, 
-                                                        opt$clusmethod, idfiltstr), full.names = TRUE)
+#chosen normalization file
+datfiles <<- list.files(path = datdir, 
+                        pattern = pasteu(exptstr, opt$method, opt$normalization, 
+                                         opt$clusmethod, 
+                                         idfiltstr), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
-load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
+
+#
+datfiles <<- list.files(path = datdir,
+                        pattern = pasteu(exptstr, "1_se_filtqc", idfiltstr), full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+#load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
 
 if (opt$clusmethod == "snn"){
+  seu@data <- GetAssayData(seu = seu)
   se_filtered <- se_filtered[, colnames(seu@data)]
-  metadata <- seu@meta.data[, c(grep("^res", colnames(seu@meta.data))), drop = FALSE]
+  metadata <- seu[, c(grep("^res", colnames(seu))), drop = FALSE]
+  #metadata <- seu@meta.data[, c(grep("^res", colnames(seu@meta.data))), drop = FALSE]
   if (opt$seures %in% colnames(metadata)) {
      seures <- 0.5
   } else {
@@ -69,15 +81,17 @@ if (opt$clusmethod == "snn"){
                          batch = colData(se_filtered)$batch,  
                          samples = colnames(seu@data))
   colData(cl) <- DataFrame(metadata)
-  if (opt$method == "zinb") reducedDim(cl, "zinbwave") <- seu@dr$zinbwave@cell.embeddings
-}
+if (opt$method == "zinb"){ reducedDim(cl, "zinbwave") <- seu@dr$zinbwave@cell.embeddings
+}}
 
 
 seed <- 2782472
 
 # Plot marker gene heatmap
 massivePalette <- massivePalette[-3]
+#cl <- cl2
 cl <- recolorMassive(cl)
+#cl <- recolorMassive_cl(cl)
 
 markers <- intersect(unlist(read.table(file.path("../ref", opt$markerfile))),
                      rownames(cl))
