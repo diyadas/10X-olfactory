@@ -27,7 +27,7 @@ ncores <- opt$ncores
 print(opt)
 
 if (opt$idfilt) {
-  idfiltstr <- ""
+  idfiltstr <- "idfiltyes"
 } else {
   idfiltstr <- "idfiltno"
 }
@@ -48,11 +48,20 @@ samples <- colnames(se_filtered)[grep("late", colData(se_filtered)$expt, invert 
 print(head(samples))
 print(length(samples))
 
+if (method == "scone") {
 datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "scone", opt$normalization, "data", idfiltstr),
                         full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
+} else if (method == "zinb"){
+#  load(file.path(datdir, pasteu(exptstr, method, "data.Rda")))
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, idfiltstr, "zinb",  "data"),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+}
 
 #load(file.path(datdir, pasteu0(exptstr, "scone", opt$normalization, "data", idfiltstr, ".Rda")))
 mat <- get_normalized(scone_obj, opt$normalization, log = FALSE)
@@ -63,15 +72,6 @@ rm(scone_obj)
 print(dim(mat))
 print(head(colnames(mat)))
 print(length(setdiff(samples, colnames(mat))))
-
-if (method == "zinb"){
-#  load(file.path(datdir, pasteu(exptstr, method, "data.Rda")))
-datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, idfiltstr, "zinb",  "data"),
-                        full.names = TRUE)
-datfile <- datfiles[length(datfiles)]
-print(paste("Loading this data file: ", datfile))
-load(datfile)
-}
 
 mat <- mat[, samples]
 
