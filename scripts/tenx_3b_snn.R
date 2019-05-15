@@ -5,7 +5,7 @@
 # Load command-line arguments
 library(scone)
 library(zinbwave)
-library(Seurat)
+library(Seurat) #packageVersion("Seurat") on bridges is 3.0
 library(BiocParallel)
 library(optparse)
 library(mgcv)
@@ -76,19 +76,21 @@ print(length(setdiff(samples, colnames(mat))))
 mat <- mat[, samples]
 
 seed <- 2782472
-#resolution <- seq(0, 2, 0.1)
-resolution <- (2)
+resolution <- seq(0, 2, 0.1)
+#resolution <- (2)
 
-seu <- CreateSeuratObject(raw.data = mat, min.cells = 1, min.genes = 1, 
-                          project = exptstr)
+seu <- CreateSeuratObject(counts= mat, project = exptstr)
+#raw.data = mat, min.cells = 1, min.genes = 1,  project = exptstr)
 if (method == "scone"){
-seu <- ScaleData(seu, do.center = TRUE, do.scale = FALSE)
-seu <- RunPCA(seu, seed.use = seed, pc.genes = rownames(seu@data), pcs.compute = 50)
-seu <- FindClusters(object = seu, reduction.type = "pca", 
+seu <- FindVariableFeatures(object = seu)
+seu <- ScaleData(object = seu, do.center = TRUE, do.scale = FALSE)
+seu <- RunPCA(object = seu, seed.use = seed, pc.genes = rownames(seu@data), pcs.compute = 50)
+seu <- FindNeighbors(object = seu)
+seu <- FindClusters(object = seu, reduction = "pca", 
                     dims.use = 1:50, #this should match K
                     resolution = resolution, print.output = 0, save.SNN = TRUE)
 } else if (method == "zinb") {
-  seu <- ScaleData(seu, do.center = TRUE, do.scale = FALSE)
+  seu <- ScaleData(object = seu, do.center = TRUE, do.scale = FALSE)
   seu <- SetDimReduction(object = seu, reduction.type = "zinbwave", 
                          slot = "cell.embeddings",
                          new.data = reducedDim(zinb_obj, "zinbwave")[samples,])
