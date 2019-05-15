@@ -85,6 +85,7 @@ print(colnames(cl@clusterMatrix))
 cl2 <- mergeClusters(cl, mergeMethod = mergemethod,
       			DEMethod = "limma-voom",
 			plotInfo = "mergeMethod",
+			minsizes = 10,
 			logFCcutoff = 1, cutoff = cutoff,
 			leafType = "clusters", plotType = "name", 
 			ncores = ncores, random.seed  = 2357891)
