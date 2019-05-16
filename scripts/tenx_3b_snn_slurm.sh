@@ -11,7 +11,8 @@ module load gcc
 
 ncores=$1
 #expt="ob"
-expt="regen"
+#expt="regen"
+expt="regenK5"
 method=$2
 normalization=$3
 idfilt="FALSE"
@@ -38,10 +39,10 @@ usage() {
 
 [[ $# -eq 3 ]] || usage  # fail if incorrect number of args and print usage info
 
-while true; do free -h >> 'tenx_3b_snn_slum_'$NOW'_memory.out'; sleep 15; done &
+while true; do free -h >> 'memorylogs/${expt]_tenx_3b_snn_slurm_'$NOW'_memory.out'; sleep 15; done &
 
 run tenx_3b_snn.R \
-   env R_LIBS=/pylon5/ib5phhp/diyadas/rpack/3.5/ R --vanilla --args \
+   env R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla --args \
        --expt "$expt" --ncores "$ncores" --method "$method" --normalization "$normalization" --idfilt "$idfilt" 
 
 #R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_3b_snn.R --args --expt regen --ncores $1 --normalization "none,fq,ruv_k=2,no_bio,no_batch" --method scone > 'tenx_3b_snn'$NOW'.Rout' 2>&1
