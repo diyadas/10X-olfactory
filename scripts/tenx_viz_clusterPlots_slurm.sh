@@ -17,12 +17,12 @@ normalization=$3
 clusmethod=$4 #snn or rsec
 #expt="cortex"
 #markerfile="cortexgenes.txt"
-#expt="ob"
-#markerfile="OBmarkers.txt"
+expt="ob"
+markerfile="OBmarkers.txt"
 seures="res.0.5"
 #expt="regen"
-expt="regenK5"
-markerfile="oe_markers_regen.txt"
+#expt="regenK5"
+#markerfile="oe_markers_regen.txt"
 #markerfile="oe_markers32+regen.txt"
 idfilt="FALSE"
 

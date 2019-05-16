@@ -16,8 +16,8 @@ normalization=$3
 clusmethod=$4 #rsec or snn
 #expt="ob"
 #expt="cortex"
-#expt="regen"
-expt="regenK5"
+expt="regen"
+#expt="regenK5"
 #idfilt="TRUE"
 idfilt="FALSE"
 
