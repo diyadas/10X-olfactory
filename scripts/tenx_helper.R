@@ -137,4 +137,10 @@ recolorMassive <- function(ce){
   return(ce)
 }
 
+recolorMassive_cl <- function(cl){
+  for (x in colnames(cl@clusterMatrix)){
+    cl <- recolorClusters(cl, massivePalette[1:length(unique(cl@clusterMatrix[,x]))], whichCluster = x, "name")
+  }
+  return(cl)
+}
 
