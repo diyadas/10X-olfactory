@@ -73,8 +73,16 @@ load(datfile)
 }
 }
 
-load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
+#pare down to filtered
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, "1_se_filtqc", idfiltstr),
+                        full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+
+seu@data <- GetAssayData(object = seu)
 se_filtered <- se_filtered[, colnames(seu@data)]
+seu@meta.data <- GetAssayData(object = seu, slot = "counts")
 metadata <- data.frame(seu@meta.data, expt = colData(se_filtered)$expt,
                                       batch = colData(se_filtered)$batch,
                       samples = colnames(seu@data), row.names = "samples")
