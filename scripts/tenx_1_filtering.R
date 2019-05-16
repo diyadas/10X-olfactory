@@ -28,9 +28,14 @@ option_list <- list(
 	      QC metrics have not previously been calculated"),
   make_option("--fast", default = FALSE, type = "logical",
   	      help = "whether to use fast (approximate) PCA"),
-  make_option("--exclude", default = "", type="character", help = "name for excluded samples, if given")
+  make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?")
   )
 opt <- parse_args(OptionParser(option_list = option_list))
+if (opt$idfilt) {
+  idfiltstr <- ""
+} else {
+  idfiltstr <- "idfiltno"
+}
 
 print(opt)
 mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
