@@ -13,7 +13,8 @@ module load gcc
 ncores=$1
 normalization=$2
 #expt="ob"
-expt="regen"
+expt="regenK5"
+#expt="regen"
 #expt="cortex"
 idfilt="FALSE"
 
@@ -39,10 +40,10 @@ usage() {
 
 [[ $# -eq 2 ]] || usage  # fail if incorrect number of args and print usage info
 
-while true; do free -h >> 'tenx_2b_scone_2_compute_'$NOW'_memory.out'; sleep 15; done &
+while true; do free -h >> 'memorylogs/tenx_2b_scone_2_compute_'$NOW'_memory.out'; sleep 15; done &
 
 run tenx_2a_scone_2_compute.R \
-   env R_LIBS=/pylon5/ib5phhp/diyadas/rpack/3.5/ R --vanilla --args \
+   env R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla --args \
        --expt "$expt" --ncores "$ncores" --idfilt "$idfilt"  --normalization "$normalization"
 
 #R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla < tenx_2a_scone_2_compute.R --args --expt regen --ncores $ncores --normalization $2  \
