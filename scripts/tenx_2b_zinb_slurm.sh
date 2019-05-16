@@ -11,7 +11,8 @@
 module load gcc
 
 ncores=$1
-expt="ob"
+expt="regenK5"
+#expt="ob"
 #expt="cortex"
 idfilt="FALSE"
 
