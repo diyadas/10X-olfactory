@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH -t 48:00:00
 #SBATCH -p LM
-#SBATCH --mem 500GB
+#SBATCH --mem 1000GB
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=diyadas@berkeley.edu,rchance@berkeley.edu
 
@@ -16,13 +16,15 @@ module load gcc
 ncores=$1
 method=$2 #zinb or scone
 normalization=$3
-expt="ob"
+#expt="regenK5"
+expt="regen"
+#expt="ob"
 #expt="cortex"
 idfilt="FALSE"
 
 job=$SLURM_JOB_ID
 NOW=$(date +"%Y%m%d-%H%M%S")
-LOG="logs/${expt}_3a_rsec_${job}_${NOW}.Rout"
+LOG="logs/${expt}_3a_rsec_slurm_${job}_${NOW}.Rout"
 exec >> "$LOG" 2>&1 || exit 1     # redirect stdout and error to log file, will fail if the logs directory doesn't exist
 
 # as refactored by JW Adams from last commit
@@ -43,11 +45,11 @@ usage() {
 [[ $# -eq 3 ]] || usage  # fail if incorrect number of args and print usage info
 
 
-while true; do free -h >> 'memorylogs/tenx_3a_rsec_'$NOW'_memory.out'; sleep 15; done &
+while true; do free -h >> 'memorylogs/tenx_3a_rsec_slurm_'$NOW'_memory.out'; sleep 15; done &
 
 
 run tenx_3a_rsec.R \
-   env R_LIBS=/pylon5/ib5phhp/diyadas/rpack/3.5/  R --vanilla --args \
+   env R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/  R --vanilla --args \
        --expt "$expt" --normalization "$normalization" \
        --ncores "$ncores" --method "$method" --idfilt "$idfilt" \
        --sequential TRUE \
