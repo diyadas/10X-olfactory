@@ -30,7 +30,7 @@ library(scone)
 source("tenx_helper.R")
 
 if (opt$idfilt) {
-  idfiltstr <- "idfiltyes"
+  idfiltstr <- ""
 } else {
   idfiltstr <- "idfiltno"
 }
