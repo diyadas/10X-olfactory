@@ -68,6 +68,7 @@ reduceMethod = "PCA"
 sce <- SingleCellExperiment(assays = list(counts = mat))
 
 if (method == "zinb") {
+
   datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, idfiltstr, method, "data"),
                         full.names = TRUE)
   datfile <- datfiles[length(datfiles)]

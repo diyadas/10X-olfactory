@@ -87,6 +87,7 @@ last_datfile <-	function(datdir, exptstr, method, norm, clusmethod){
    print(paste("Loading this data file: ", datfile))
 }
 
+
 showPalette <- function (colPalette = bigPalette, which = NULL, cex = 1) {
   oldPar <- par(no.readonly = TRUE)
   wh <- which

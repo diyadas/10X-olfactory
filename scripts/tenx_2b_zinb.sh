@@ -9,8 +9,8 @@
 #
 
 ncores=$1
-#expt="ob"
-expt="cortex"
+expt="ob"
+#expt="cortex"
 idfilt="FALSE"
 
 job=$(basename "$0" .sh)
@@ -35,7 +35,7 @@ usage() {
 
 [[ $# -eq 1 ]] || usage  # fail if incorrect number of args and print usage info
 
-while true; do free -h >> 'tenx_2b_zinb_'$NOW'_memory.out'; sleep 15; done &
+while true; do free -h >> 'memorylogs/tenx_2b_zinb_'$NOW'_memory.out'; sleep 15; done &
 
 run tenx_2b_zinb.R \
    env R_LIBS=/share/groups/diya-russell/rpack/3.5/ R --vanilla --args \

@@ -60,7 +60,6 @@ print(paste("Loading this data file: ", datfile))
 load(datfile)
 }
 
-#
 datfiles <<- list.files(path = datdir,
                         pattern = pasteu(exptstr, "1_se_filtqc", idfiltstr), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
