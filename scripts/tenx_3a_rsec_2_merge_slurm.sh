@@ -8,7 +8,7 @@
 #SBATCH --mail-user=diyadas@berkeley.edu,rchance@berkeley.edu
 
 # some stuff here #SBATCH --mem 500GB #SBATCH -t 336:00:00
-
+ 
 ncores=$1
 method=$2 #zinb or scone
 normalization=$3
@@ -49,7 +49,7 @@ while true; do free -h >> 'memorylogs/'$expt'_3a_rsec_2_merge_'$NOW'_memory.out'
 module load gcc
 
 run tenx_3a_rsec_2_merge.R \
-    env R_LIBS=/pylon5/ib5phhp/diyadas/rpack/3.5/ R --vanilla --args \
+    env R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla --args \
         --expt "$expt" \
         --ncores $ncores \
         --normalization  "$normalization" \
