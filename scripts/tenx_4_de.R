@@ -1,6 +1,6 @@
 # Differential gene expression of 10X data
-# Authors: Diya Das
-# Last revised: Mon Oct 15 22:19:11 2018
+# Authors: Diya Das and Rebecca Chance
+# Last revised: Thu May 16 2019
 
 # Load command-line arguments
 library(Seurat)
@@ -28,7 +28,7 @@ clusmethod <- opt$clusmethod
 print(opt)
 
 if (opt$idfilt) {
-  idfiltstr <- ""
+  idfiltstr <- "idfiltyes"
 } else {
   idfiltstr <- "idfiltno"
 }
@@ -37,7 +37,7 @@ register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 if (opt$normalization == "scone") {
-datfiles <<- list.files(path = datdir, pattern = pasteu0(exptstr, method, opt$normalization, 
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, method, opt$normalization, 
                                                         opt$clusmethod, idfiltstr), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
@@ -48,7 +48,7 @@ datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
 }
-load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
+#load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
 
 
 datfiles <- list.files(path = datdir, pattern = pasteu(exptstr, method, opt$normalization, "snn", idfiltstr), full.names = TRUE)
@@ -82,10 +82,10 @@ metadata <- metadata[colnames(seu@raw.data),]
 
 if (opt$clusmethod == "rsec") {
 ce <- ClusterExperiment(cl2, clusters = primaryCluster)
-de_onevall <- getBestFeatures(cl2, contrastType = "OneAgainstAll", whichAssay = 1,
+ce <- makeDendrogram(ce, reduceMethod = "var", nDims = 1000)
+de_onevall <- getBestFeatures(ce, contrastType = "OneAgainstAll", whichAssay = 1,
                          DEMethod = "limma", number = 100)
 } else if (opt$clusmethod == "snn") {
-
 #ce <- ClusterExperiment(seu@raw.data, clusters = seu@meta.data[,"res.0.5"], 
 #                        transformation = function(x) log2(x + 1))
 ce <- ClusterExperiment(seu@raw.data, clusters = seu@meta.data[,"res.2"],
@@ -96,9 +96,10 @@ ce <- makeDendrogram(ce, reduceMethod = "var", nDims = 1000)
 
 de_ce <- getBestFeatures(ce, contrastType = "OneAgainstAll", whichAssay = 1,
                          DEMethod = "limma", number = 100)
+}
 rownames(se_filtered) <- rowData(se_filtered)$Symbol
 colData(ce)$batch <- colData(se_filtered)$batch
-}
+
 
 save(ce, file = file.path(datdir, pasteu0(exptstr, method,
                                            opt$normalization,"res05","cmobj", format(Sys.time(), "%Y%m%d_%H%M%S"),".Rda")))
