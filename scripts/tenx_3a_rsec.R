@@ -4,9 +4,12 @@
 
 # Load command-line arguments
 library(scone)
+library(SingleCellExperiment)
 library(clusterExperiment)
 library(BiocParallel)
 library(optparse)
+
+print(sessionInfo())
 
 option_list <- list(
   make_option("--expt", default = "", type = "character", help = "Experiment ID"),
@@ -24,7 +27,7 @@ method <- opt$method
 datdir <- file.path("../output", exptstr, "data")
 ncores <- opt$ncores
 
-#register(MulticoreParam(workers = opt$ncores))
+register(MulticoreParam(workers = opt$ncores))
 
 source("tenx_helper.R")
 
@@ -59,12 +62,13 @@ mat <- get_normalized(scone_obj, opt$normalization, log = FALSE)
 rm(scone_obj)
 gc()
 mat <- mat[, samples]
+rownames(mat) <- make.names(rownames(mat), unique= TRUE)
 reduceMethod = "PCA"
 
 sce <- SingleCellExperiment(assays = list(counts = mat))
 
 if (method == "zinb") {
-  datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, method, "data", idfiltstr),
+  datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, idfiltstr, method, "data"),
                         full.names = TRUE)
   datfile <- datfiles[length(datfiles)]
   print(paste("Loading this data file: ", datfile))
@@ -81,7 +85,8 @@ colData(sce) <- DataFrame(expt = colData(se_filtered)$expt,
 cl <- RSEC(sce, k0s = seq(10, 25, by = 3), alphas = c(0.1, 0.2, 0.3),
            reduceMethod = reduceMethod,
            transFun = function(x) log2(x + 1), # should override isCount=FALSE, or could write isCount=TRUE
-           nReducedDims = 30,
+           nReducedDims = 20,
+#           nReducedDims = 30,
            sequential = opt$sequential, subsample = opt$subsample,
            subsampleArgs = list(resamp.num = 50, clusterFunction = "kmeans"),
            betas = c(0.8),
@@ -101,6 +106,8 @@ cl
 print(colnames(cl@clusterMatrix))
 subsamplestr <- ifelse (opt$subsample, "sub", "nosub")
 seqstr <- ifelse(opt$sequential, "seq", "noseq")
+
+traceback()
 
 save(cl, subsamplestr, seqstr, 
      file = file.path(datdir, pasteu0(exptstr, opt$method, opt$normalization,
