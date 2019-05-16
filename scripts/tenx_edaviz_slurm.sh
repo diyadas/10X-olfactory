@@ -3,8 +3,7 @@
 #SBATCH --export=ALL
 #SBATCH --nodes=1
 #SBATCH -t 48:00:00
-#SBATCH -p LM
-#SBATCH --mem 500GB
+#SBATCH -p RM
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=diyadas@berkeley.edu,rchance@berkeley.edu
 
@@ -16,8 +15,10 @@ normalization="$2"
 #markerfile="cortexgenes.txt"
 #expt="ob"
 #markerfile="OBmarkers.txt"
-expt="regen"
-markerfile="oe_markers32+regen.txt"
+#expt="regen"
+expt="regenK5"
+markerfile="oe_markers_regen.txt"
+#markerfile="oe_markers32+regen.txt"
 idfilt="FALSE"
 
 job=$SLURM_JOB_ID
@@ -43,7 +44,7 @@ usage() {
 [[ $# -eq 2 ]] || usage  # fail if incorrect number of args and print usage info
 
 run tenx_edaviz.R \
-   env R_LIBS=/pylon5/ib5phhp/diyadas/rpack/3.5/ R --vanilla --args \
+   env R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla --args \
        --expt "$expt" --ncores "$ncores" --normalization "$normalization" \
        --markerfile "$markerfile" --idfilt "$idfilt" 
 
