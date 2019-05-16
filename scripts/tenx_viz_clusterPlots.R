@@ -69,7 +69,7 @@ load(datfile)
 #load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
 
 if (opt$clusmethod == "snn"){
-  seu@data <- GetAssayData(object = seu)
+  seu@data <- GetAssayData(object = seu, slot = "counts")
   se_filtered <- se_filtered[, colnames(seu@data)]
   metadata <- seu[, c(grep("^res", colnames(seu))), drop = FALSE]
   #metadata <- seu@meta.data[, c(grep("^res", colnames(seu@meta.data))), drop = FALSE]
@@ -89,7 +89,7 @@ if (opt$clusmethod == "snn"){
                          batch = colData(se_filtered)$batch,  
                          samples = colnames(seu@data))
   colData(cl) <- DataFrame(metadata)
-if (opt$method == "zinb"){ reducedDim(cl, "zinbwave") <- seu@dr$zinbwave@cell.embeddings
+if (opt$method == "zinb"){ reducedDim(cl, "zinbwave") <- seu[["zinbwave@cell.embeddings"]]
 }}
 
 
