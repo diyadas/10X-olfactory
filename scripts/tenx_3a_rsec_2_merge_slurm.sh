@@ -3,11 +3,11 @@
 #SBATCH --export=ALL
 #SBATCH --nodes=1
 #SBATCH -t 48:00:00
-#SBATCH -p RM
+#SBATCH -p LM
+#SBATCH --mem 500GB
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=diyadas@berkeley.edu,rchance@berkeley.edu
 
-# some stuff here #SBATCH --mem 500GB #SBATCH -t 336:00:00
  
 ncores=$1
 method=$2 #zinb or scone
