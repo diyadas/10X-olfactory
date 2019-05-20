@@ -7,22 +7,24 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=diyadas@berkeley.edu,rchance@berkeley.edu
 
-# some stuff here #SBATCH --mem 500GB #SBATCH -t 336:00:00
-
 module load gcc
 
 ncores=$1
 method=$2 #zinb or scone
 normalization=$3
 clusmethod=$4 #snn or rsec
+#IF RSEC
+merge=$5 #merged or notmerged
+whichmerge=$6 #adjP_cutoff  or locfdr_cutoff
+
 #expt="cortex"
 #markerfile="cortexgenes.txt"
-expt="ob"
-markerfile="OBmarkers.txt"
+#expt="ob"
+#markerfile="OBmarkers.txt"
 seures="res.0.5"
-#expt="regen"
+expt="regen"
 #expt="regenK5"
-#markerfile="oe_markers_regen.txt"
+markerfile="oe_markers_regen.txt"
 #markerfile="oe_markers32+regen.txt"
 idfilt="FALSE"
 
@@ -65,8 +67,8 @@ while true; do free -h >> 'memorylogs/${expt}_tenx_viz_clusterPlots_slurm_'$NOW'
 
 # tenx_viz_quicktsne.R --args \
 
-R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla < \
-tenx_viz_clusterPlots.R --args \
+run tenx_viz_clusterPlots.R \
+  env R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla --args \
 --expt "$expt" \
 --ncores "$ncores" \
 --normalization  "$normalization" \
@@ -75,22 +77,4 @@ tenx_viz_clusterPlots.R --args \
 --markerfile "$markerfile" \
 --seures "$seures" \
 --idfilt "$idfilt" \
---samplesort primaryCluster > 'logs/tenx_viz_clusterPlots'$NOW'.Rout' 2>&1
-
-
-#R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla < tenx_viz_clusterPlots.R --args --expt regen --ncores $ncores --norm $2 --method scone > 'tenx_viz_clusterPlots'$NOW'.Rout' 2>&1
-
-
-#  R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla < tenx_viz_clusterPlots.R --args --expt ob --ncores $ncores --norm $2 \
-#  --method scone \
-#  --markerfile "OBmarkers.txt" \
-#  #'ob_scone_none,fq,ruv_k=3,no_bio,batch_res05_DE_OneAgainstAll_20181220_192548_top5abslogFC.txt' \
-# > 'tenx_viz_clusterPlots'$NOW'.Rout' 2>&1
-
-#R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla < tenx_viz_clusterPlots.R --args --expt ob --ncores $ncores --norm $2 \
-#--method scone \
-#--markerfile "OBmarkers.txt" \
-#--clusmethod rsec \
-#'ob_scone_none,fq,ruv_k=3,no_bio,batch_res05_DE_OneAgainstAll_20181220_192548_top5abslogFC.txt' \
-#> 'tenx_viz_clusterPlots'$NOW'.Rout' 2>&1
- 
+--samplesort primaryCluster  
