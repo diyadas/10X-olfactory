@@ -38,6 +38,7 @@ method <- opt$method
 datdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz")
 ncores <- opt$ncores
+clusmethod <- opt$clusmethod
 
 register(MulticoreParam(workers = opt$ncores))
 
@@ -79,6 +80,34 @@ if (opt$clusmethod == "snn"){
     seures <- colnames(metadata)[1]
     message(paste("seures:", seures))
   }
+
+ if (opt$clusmethod == "rsec") {
+datfiles <<- list.files(path = datdir,
+                        pattern = pasteu(exptstr, method, opt$normalization,
+                                         opt$clusmethod,
+                                         idfiltstr), full.names = TRUE)
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+#regen_scone_none,fq,qc_k=4,no_bio,batch_rsec_idfiltno_20190516_090833.Rda
+#regen_scone_none,fq,qc_k=4,no_bio,batch_rsec_plotdendro_adjP_cutoff_0.01_20190517_11422
+} if (opt$merge == "merged") {
+  if (opt$exptstr == "regen" | opt$exptrstr == "regenK5) {
+        datfiles <<- list.files(path = datdir,
+                        pattern = pasteu(exptstr, method, opt$normalization,
+                                         opt$clusmethod, "adjP_cutoff_0.01",
+                                         idfiltstr), full.names = TRUE) 
+   } else if (opt$exptstr == "ob" | opt$exptstr == "cortex" ) {
+         datfiles <<- list.files(path = datdir,
+                        pattern = pasteu(exptstr, method, opt$normalization,
+                                         opt$clusmethod, "locfdr_cutoff_", opt$whichmerge,
+                                         idfiltstr), full.names = TRUE)
+   }
+datfile <- datfiles[length(datfiles)]
+print(paste("Loading this data file: ", datfile))
+load(datfile)
+} 
+
   counts <- 2 ^ (seu@data) - 1
   cl <- ClusterExperiment(counts,
                           clusters = as.matrix(metadata),
