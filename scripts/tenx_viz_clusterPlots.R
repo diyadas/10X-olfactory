@@ -23,7 +23,9 @@ option_list <- list(
               help = "Seurat, which resolution to use for primary clustering"),
   make_option("--samplesort", type = "character", 
               help = "argument clusterSamplesData, i.e. dendrogramValue or primaryCluster"),
-  make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?")
+  make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?"),
+  make_option("--merge", default = FALSE, type = "logical", help = "logical has rsec merging been run, if yes merged"),
+  make_option("--whichmerge", type= "character", help= "for regen hardcoded for ob or ctx number following locfdr_cutoff_ ")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
