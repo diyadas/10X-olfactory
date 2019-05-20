@@ -13,10 +13,6 @@ ncores=$1
 method=$2 #zinb or scone
 normalization=$3
 clusmethod=$4 #snn or rsec
-#IF RSEC
-merge=$5 #merged or notmerged
-whichmerge=$6 #adjP_cutoff  or locfdr_cutoff
-
 #expt="cortex"
 #markerfile="cortexgenes.txt"
 #expt="ob"
@@ -52,20 +48,6 @@ usage() {
 
 while true; do free -h >> 'memorylogs/${expt}_tenx_viz_clusterPlots_slurm_'$NOW'_memory.out'; sleep 15; done &
 
-#module load hdf5
-
-#R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla < tenx_viz_clusterPlots.R --args --expt regen --ncores $ncores --norm "none,fq,ruv_k=1,no_bio,no_batch" --method scone --clusmethod snn > 'tenx_viz_clusterPlots'$NOW'.Rout' 2>&1
-
-#R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla < \
-#tenx_viz_clusterPlots.R --args \
-#--expt regen \
-#--ncores $ncores \
-#--norm "none,fq,ruv_k=1,no_bio,no_batch" \
-#--method scone \
-#--clusmethod rsec \
-#--samplesort primaryCluster > 'tenx_viz_clusterPlots'$NOW'.Rout' 2>&1
-
-# tenx_viz_quicktsne.R --args \
 
 run tenx_viz_clusterPlots.R \
   env R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla --args \
