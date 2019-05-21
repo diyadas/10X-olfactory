@@ -15,6 +15,7 @@ option_list <- list(
   make_option("--clusmethod", type = "character", default = "snn",
               help = "clustering method - snn or rsec"),
   make_option("--ncores", default = "1", type = "double"),
+  make_option("--whichmerge", type = "character", default = "adjP_cutoff_0.01", help = "choice post rsec"),
   make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?")
 )
 
@@ -24,6 +25,7 @@ method <- opt$method
 datdir <- file.path("../output", exptstr, "data")
 ncores <- opt$ncores
 clusmethod <- opt$clusmethod
+whichmerge <- opt$whichmerge
 
 print(opt)
 
@@ -43,34 +45,33 @@ datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
 } else if (opt$normalization == "zinb") {
-datfiles <<- list.files(path = datdir, pattern = pasteu0(exptstr, method, "data", idfiltstr), full.names = TRUE)
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, method, "data", idfiltstr), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
 }
 #load(file.path(datdir, pasteu0(exptstr, "1_se_filtqc", idfiltstr, ".Rda")))
 
-
+if (opt$clusmethod == "snn") {
 datfiles <- list.files(path = datdir, pattern = pasteu(exptstr, method, opt$normalization, "snn", idfiltstr), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
-
-if (opt$clusmethod == "rsec") {
-if (opt$method == "scone") {
-#ob_scone_none,fq,qc_k=2,no_bio,batch_rsec_locfdr_mergecutoff_0.5_20190425_155428.Rda
-datfiles <- list.files(path = datdir, 
-                       pattern = pasteu(exptstr, method, opt$normalization, clusmethod, "locfdr_mergecutoff_0.08"), full.names = TRUE)
-datfile <- datfiles[length(datfiles)]
-print(paste("Loading this data file: ", datfile))
-load(datfile)
-} else if (opt$method == "zinb") {
-datfiles <- list.files(path = datdir, 
-                       pattern = pasteu(exptstr, method, opt$normalization, clusmethod, "locfdr_mergecutoff_0.3"), full.names = TRUE)
-datfile <- datfiles[length(datfiles)]
-print(paste("Loading this data file: ", datfile))
-load(datfile)
-}
+} else if (opt$clusmethod == "rsec") {
+   if (opt$method == "scone") {
+          #ob_scone_none,fq,qc_k=2,no_bio,batch_rsec_locfdr_mergecutoff_0.5_20190425_155428.Rda #0.08 here
+   datfiles <- list.files(path = datdir, 
+                       pattern = pasteu(exptstr, method, opt$normalization, clusmethod, whichmerge), full.names = TRUE)
+    datfile <- datfiles[length(datfiles)]
+    print(paste("Loading this data file: ", datfile))
+    load(datfile)
+   } else if (opt$method == "zinb") {
+        datfiles <- list.files(path = datdir, 
+                       pattern = pasteu(exptstr, method, opt$normalization, clusmethod, whichmerge), full.names = TRUE)
+        datfile <- datfiles[length(datfiles)]
+        print(paste("Loading this data file: ", datfile))
+        load(datfile)
+   }
 }
 
 #pare down to filtered
@@ -110,11 +111,11 @@ colData(ce)$batch <- colData(se_filtered)$batch
 
 
 save(ce, file = file.path(datdir, pasteu0(exptstr, method,
-                                           opt$normalization,"res05","cmobj", format(Sys.time(), "%Y%m%d_%H%M%S"),".Rda")))
+                                           opt$normalization,"res05","cmobj", whichmerge,  format(Sys.time(), "%Y%m%d_%H%M%S"),".Rda")))
 
 write.table(de_ce, file = file.path(datdir, 
                                     pasteu0(exptstr, method, 
-                                           opt$normalization,"res05","DE_OneAgainstAll", format(Sys.time(), "%Y%m%d_%H%M%S"),".txt")),
+                                           opt$normalization,"res05","DE_OneAgainstAll", whichmerge,  format(Sys.time(), "%Y%m%d_%H%M%S"),".txt")),
             sep = "\t", quote = FALSE, row.names = FALSE)
 
 #de_ce <- getBestFeatures(ce, contrastType = "Pairs", whichAssay = 1, 
