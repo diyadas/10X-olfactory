@@ -13,11 +13,15 @@ module load gcc
 ncores=$1
 method=$2 #zinb or scone
 normalization=$3
-clusmethod=$4 #rsec or snn
+clusmethod=$4 #rsec or snn, if rsec add whichmerge
+
 #expt="ob"
 #expt="cortex"
+#whichmerge="locfdr_cutoff_0.08"
+
 expt="regen"
 #expt="regenK5"
+#whichmerge="adjP_cutoff_0.01"
 #idfilt="TRUE"
 idfilt="FALSE"
 
@@ -37,7 +41,7 @@ run() {
 }
 
 usage() {
-       echo "usage: tenx_4_de.sh ncores method normalization clusmethod" >&2
+       echo "usage: tenx_4_de.sh ncores method normalization clusmethod whichmerge" >&2
        exit 2
 }
 
@@ -49,7 +53,7 @@ while true; do free -h >> 'memorylogs/${expt}_tenx_4_de_slurm_'$NOW'_memory.out'
 
 run tenx_4_de.R \
    env R_LIBS=/pylon5/ib5phhp/shared/rpack/3.5/ R --vanilla --args \
-       --expt "$expt" --normalization "$normalization" \
+       --expt "$expt" --normalization "$normalization" --whichmerge "$whichmerge" \
        --ncores "$ncores" --method "$method" --clusmethod "$clusmethod"  --idfilt "$idfilt" 
 
 
