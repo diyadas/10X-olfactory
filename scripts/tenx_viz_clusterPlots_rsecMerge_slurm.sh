@@ -14,8 +14,9 @@ method=$2 #zinb or scone
 normalization=$3
 clusmethod=$4 #snn or rsec
 #IF RSEC
-merge=$5 #merged or notmerged
-whichmerge="adjP_cutoff_0.01"
+merge="merged" #merged or notmerged
+#whichmerge="plotdendro_adjP_cutoff_0.01"
+whichmerge="adjP_mergecutoff_0.01"
 #whichmerge=$6 #adjP_cutoff_0.01 harcoded for regen/regenk5,  or locfdr_cutoff
 
 #expt="cortex"
@@ -31,7 +32,7 @@ idfilt="FALSE"
 
 job=$SLURM_JOB_ID
 NOW=$(date +"%Y%m%d-%H%M%S")
-LOG="logs/${expt}_viz_clusterPlots_slurm_rsecMerge_${job}_${NOW}.Rout"
+LOG="logs/${expt}_viz_clusterPlots_rsecMerge_slurm_${job}_${NOW}.Rout"
 exec >> "$LOG" 2>&1 || exit 1     # redirect stdout and error to log file, will fail if the logs directory doesn't exist
 
 # as refactored by JW Adams from last commit
@@ -45,11 +46,11 @@ run() {
 }
 
 usage() {
-       echo "usage: tenx_viz_slurm_clusterPlots.sh ncores method normalization clusmethod" >&2
+       echo "usage: tenx_viz_clusterPlots_rsecMerge_slurm.sh ncores method normalization clusmethod" >&2
        exit 2
 }
 
-[[ $# -eq 5 ]] || usage  # fail if incorrect number of args and print usage info
+[[ $# -eq 4 ]] || usage  # fail if incorrect number of args and print usage info
 
 while true; do free -h >> 'memorylogs/${expt}_tenx_viz_clusterPlots_rsecMerge_slurm_'$NOW'_memory.out'; sleep 15; done &
 
