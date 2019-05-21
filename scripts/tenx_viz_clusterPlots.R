@@ -63,8 +63,7 @@ datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
 } else if (opt$method == "zinb") {
-datfiles <<- list.files(path = datdir, pattern = pasteu0(exptstr, method, "data",
-                                                         idfiltstr), full.names = TRUE)
+datfiles <<- list.files(path = datdir, pattern = pasteu0(exptstr, idfiltstr,  method, "data"), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
@@ -188,7 +187,7 @@ if (!is.null(cl@reducedDims$tsne)) {
 }
 cl@reducedDims$tsne <- list()
 
-ngenesvec <- c(500, 1000, 5000, nrow(cl))
+ngenesvec <- c(1000, 5000, nrow(cl))
 perpvec <- seq(50, 100, 25)
 vars <- apply(transformData(cl), 1, var)
 vars <- sort(vars, decreasing = TRUE)
