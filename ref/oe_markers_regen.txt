@@ -13,7 +13,6 @@ Reg3g
 Sult1c1
 Cyp2g1
 Cyp1a2
-Krt8
 Il1rl1
 Il1rap
 Il1rn
@@ -22,13 +21,12 @@ Il1r2
 Il1a
 Egfr
 Hbegf
-Efemp1
 Foxp3
 Lifr
 Aqp3
 Muc1
 Aqp4
-Krt18
 Krt19
-Tmem19a
 Aqp5
+Tmem16a
+Krt8
