@@ -63,7 +63,7 @@ datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
 } else if (opt$method == "zinb") {
-datfiles <<- list.files(path = datdir, pattern = pasteu0(exptstr, idfiltstr,  method, "data"), full.names = TRUE)
+datfiles <<- list.files(path = datdir, pattern = pasteu(exptstr, idfiltstr, method, "data"), full.names = TRUE)
 datfile <- datfiles[length(datfiles)]
 print(paste("Loading this data file: ", datfile))
 load(datfile)
@@ -152,7 +152,7 @@ breakv <- unique(breakv)
 
 pdf(file = file.path(vizdir,
                      pasteu0(exptstr, "markerhm", method, opt$normalization,
-                             opt$clusmethod,
+                             opt$clusmethod, opt$whichmerge,
                              format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")),
     width = 8.5, height = 11)
 plotHeatmap(cl,
@@ -187,7 +187,8 @@ if (!is.null(cl@reducedDims$tsne)) {
 }
 cl@reducedDims$tsne <- list()
 
-ngenesvec <- c(1000, 5000, nrow(cl))
+#ngenesvec <- c(500, 1000, 5000, nrow(cl))
+ngenesvec <- c(5000, nrow(cl))
 perpvec <- seq(50, 100, 25)
 vars <- apply(transformData(cl), 1, var)
 vars <- sort(vars, decreasing = TRUE)
@@ -201,7 +202,7 @@ lapply(1:nrow(params), function(x) {
   
   pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", ngenes, perp,
                                        method, opt$clusmethod, opt$normalization, 
-                                       format(Sys.time(), "%Y%m%d_%H%M%S"), 
+                                       whichmerge, format(Sys.time(), "%Y%m%d_%H%M%S"), 
                                        ".pdf")))
   
   plot(cl@reducedDims$tsne[[x]]$Y, pch = 19, cex = 0.4, 
