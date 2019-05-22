@@ -16,8 +16,8 @@ module load gcc
 ncores=$1
 method=$2 #zinb or scone
 normalization=$3
-expt="regenK5"
-#expt="regen"
+#expt="regenK5"
+expt="regen"
 #expt="ob"
 #expt="cortex"
 idfilt="FALSE"
@@ -38,7 +38,7 @@ run() {
 }
 
 usage() {
-       echo "usage: tenx_3a_rsec.sh ncores method normalization" >&2
+       echo "usage: tenx_3a_rsec_slurm.sh expt ncores method normalization" >&2
        exit 2
 }
 
