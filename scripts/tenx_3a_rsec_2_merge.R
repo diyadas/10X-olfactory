@@ -20,7 +20,8 @@ option_list <- list(
               help = "Seurat, which resolution to use for primary clustering"),
   make_option("--samplesort", type = "character", 
               help = "argument clusterSamplesData, i.e. dendrogramValue or primaryCluster"),
-  make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?")
+  make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?"),
+  make_option("--whichmerge", type = "character", help = "locfdr_cutoff_0.3")
 )
 
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -36,6 +37,8 @@ method <- opt$method
 datdir <- file.path("../output", exptstr, "data")
 vizdir <- file.path("../output", exptstr, "viz")
 ncores <- opt$ncores
+whichmerge <- opt$whichmerge
+
 mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
 print(paste("Files produced by this script will be timestamped:", mytimestamp))
 
@@ -66,7 +69,7 @@ breakv <- unique(breakv)
 if (exptstr == "ob" | exptstr == "cortex" ) {
    mergemethod <- "locfdr"
    cutoffvec <- c(0.08, 0.1, 0.2, 0.3, 0.35, 0.4, 0.5)
-} else if (exptstr == "regen") {
+} else if (exptstr == "regen" | exptstr == "regenK5" ) {
    mergemethod <- "adjP"
    cutoffvec <- c(0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3)
 }
