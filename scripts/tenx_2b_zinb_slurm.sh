@@ -11,7 +11,8 @@
 module load gcc
 
 ncores=$1
-expt="regenK5"
+#expt="regenK5"
+expt="regen"
 #expt="ob"
 #expt="cortex"
 idfilt="FALSE"
@@ -32,7 +33,7 @@ run() {
 }
 
 usage() {
-       echo "usage: tenx_2b_zinb.sh ncores" >&2
+       echo "usage: tenx_2b_zinb.sh expt ncores idfilt" >&2
        exit 2
 }
 
