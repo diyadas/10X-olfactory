@@ -16,8 +16,10 @@ normalization=$3
 #markerfile="cortexgenes.txt"
 #expt="ob"
 #markerfile="OBmarkers.txt"
+#whichmerge= "plotdendro_adjP_cutoff_0.01"
 seures="res.0.5"
-expt="regen"
+#expt="regen"
+expt="regenK5"
 markerfile="oe_markers_regen.txt"
 idfilt="FALSE"
 
@@ -56,6 +58,7 @@ run tenx_3a_rsec_2_merge.R \
         --method "$method"  \
         --markerfile "$markerfile" \
         --idfilt "$idfilt" \
+        --whichmerge "$whichmerge"\
         --samplesort primaryCluster
 
 
