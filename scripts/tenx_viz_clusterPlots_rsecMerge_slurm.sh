@@ -30,7 +30,10 @@ seures="res.0.5"
 
 expt="regen"
 #expt="regenK5"
-markerfile="oe_markers_regen.txt"
+#markerfile="oe_markers_regen.txt"
+markerfile="ALL_Pdgf.txt"
+#markerfile="ALL_Egf.txt"
+#markerfile="ALL_Fgf.txt"
 #markerfile="oe_markers32+regen.txt"
 idfilt="FALSE"
 
