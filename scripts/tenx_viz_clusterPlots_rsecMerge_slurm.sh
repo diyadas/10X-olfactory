@@ -13,7 +13,7 @@ ncores=$1
 method=$2 #zinb or scone
 normalization=$3
 clusmethod=$4 #snn or rsec
-#IF RSEC
+#SINCE RSEC POSTMERGED
 merge="merged" #merged or notmerged
 #whichmerge="plotdendro_adjP_cutoff_0.01"
 whichmerge="adjP_mergecutoff_0.01"
@@ -23,7 +23,11 @@ whichmerge="adjP_mergecutoff_0.01"
 #markerfile="cortexgenes.txt"
 #expt="ob"
 #markerfile="OBmarkers.txt"
+#whichmerge="locfdr_mergecutoff_0.08"
+#whichmerge="locfdr_mergecutoff_0.3"
+
 seures="res.0.5"
+
 expt="regen"
 #expt="regenK5"
 markerfile="oe_markers_regen.txt"
