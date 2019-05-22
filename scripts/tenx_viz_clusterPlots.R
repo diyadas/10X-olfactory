@@ -152,7 +152,7 @@ breakv <- unique(breakv)
 
 pdf(file = file.path(vizdir,
                      pasteu0(exptstr, "markerhm", method, opt$normalization,
-                             opt$clusmethod, opt$whichmerge,
+                             opt$clusmethod, opt$whichmerge, opt$markerfile,
                              format(Sys.time(), "%Y%m%d_%H%M%S"), ".pdf")),
     width = 8.5, height = 11)
 plotHeatmap(cl,
@@ -202,7 +202,7 @@ lapply(1:nrow(params), function(x) {
   
   pdf(file = file.path(vizdir, pasteu0(exptstr, "tsne", ngenes, perp,
                                        method, opt$clusmethod, opt$normalization, 
-                                       whichmerge, format(Sys.time(), "%Y%m%d_%H%M%S"), 
+                                       whichmerge, opt$markerfile, format(Sys.time(), "%Y%m%d_%H%M%S"), 
                                        ".pdf")))
   
   plot(cl@reducedDims$tsne[[x]]$Y, pch = 19, cex = 0.4, 
