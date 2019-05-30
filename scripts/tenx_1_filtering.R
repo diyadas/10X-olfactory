@@ -28,14 +28,11 @@ option_list <- list(
 	      QC metrics have not previously been calculated"),
   make_option("--fast", default = FALSE, type = "logical",
   	      help = "whether to use fast (approximate) PCA"),
+  make_option("--exclude", default = "", type = "character",
+  	      help = "name of excluded samples list"),
   make_option("--idfilt", default = FALSE, type = "logical", help = "logical, has sample ID filtering been performed?")
   )
 opt <- parse_args(OptionParser(option_list = option_list))
-if (opt$idfilt) {
-  idfiltstr <- ""
-} else {
-  idfiltstr <- "idfiltno"
-}
 
 print(opt)
 mytimestamp <- format(Sys.time(), "%Y%m%d_%H%M%S", tz="America/Los_Angeles")
@@ -80,11 +77,13 @@ counts <- as.matrix(exprs(load_cellranger_matrix(file.path(crdir, opt$aggr))))
 se <- SummarizedExperiment(list(counts = counts), 
                            colData = data.frame(batch = batch, expt = expt))
 excluded_samples_list <- NULL
-if (length(opt$exclude)==0){
-  excluded_samples_list <<- load(paste0("../ref/", 
+if (length(opt$exclude) > 0){
+  excluded_samples_file <- paste0("../ref/",
                                         exptstr, "_", opt$exclude,
-                                        "_exclude.Rda"))
-  message("using sample to exclude list")
+                                        "_idfilt.Rda")
+  excluded_samples_list <<- load(excluded_samples_file)
+  message("using sample to exclude list: ")
+  message(excluded_samples_file)
   idfiltstr <- "idfiltyes"
 } else {
   message("no exclude list given! remember to run this again with a list of biological contaminants!")
